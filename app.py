@@ -4,6 +4,7 @@ from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, jsonify, flash
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 db = SQLAlchemy()
 
@@ -221,6 +222,30 @@ class EvidenceItem(db.Model):
         return []
 
 
+class Exhibit(db.Model):
+    """A numbered exhibit grouping evidence items with a cover sheet narrative."""
+    __tablename__ = "exhibits"
+    id = db.Column(db.Integer, primary_key=True)
+    letter = db.Column(db.String(5), nullable=False)  # A, B, C, ...
+    title = db.Column(db.String(500), nullable=False)
+    category = db.Column(db.String(50))
+    narrative = db.Column(db.Text)  # Cover sheet narrative
+    evidence_ids = db.Column(db.Text)  # JSON list of evidence IDs
+    date_range_start = db.Column(db.DateTime)
+    date_range_end = db.Column(db.DateTime)
+    incident_count = db.Column(db.Integer, default=0)
+    child_present_count = db.Column(db.Integer, default=0)
+    max_severity = db.Column(db.Integer, default=0)
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def evidence_id_list(self):
+        if self.evidence_ids:
+            return json.loads(self.evidence_ids)
+        return []
+
+
 class Claim(db.Model):
     """A pattern-of-behavior claim supported by multiple evidence items."""
     __tablename__ = "claims"
@@ -250,6 +275,17 @@ def create_app():
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///evidence.db"
     app.config["UPLOAD_FOLDER"] = os.path.join(os.path.dirname(__file__), "uploads")
     app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500MB for video/audio
+
+    # URL prefix for reverse proxy (e.g. kingdombuilders.ai/evidence)
+    url_prefix = os.environ.get("URL_PREFIX", "")
+    if url_prefix:
+        app.config["APPLICATION_ROOT"] = url_prefix
+        from werkzeug.middleware.dispatcher import DispatcherMiddleware
+        app.wsgi_app = DispatcherMiddleware(
+            Flask(__name__), {url_prefix: app}
+        )
+
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     db.init_app(app)
 
@@ -558,6 +594,229 @@ def create_app():
         except Exception as e:
             flash(f"Transcription error: {str(e)}", "error")
         return redirect(url_for("evidence_detail", item_id=item_id))
+
+    @app.route("/uploads/<path:filename>")
+    def serve_upload(filename):
+        from flask import send_from_directory
+        return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
+
+    @app.route("/audio-evidence")
+    def audio_evidence():
+        category_filter = request.args.get("category")
+        severity_min = request.args.get("severity_min", type=int)
+        search = request.args.get("q", "").strip()
+
+        query = EvidenceItem.query.filter(
+            EvidenceItem.evidence_type.in_(["audio", "voicemail"]),
+            EvidenceItem.transcript.isnot(None),
+        )
+        if category_filter:
+            query = query.filter(EvidenceItem.category == category_filter)
+        if severity_min:
+            query = query.filter(EvidenceItem.severity >= severity_min)
+        if search:
+            query = query.filter(EvidenceItem.transcript.ilike(f"%{search}%"))
+
+        items = query.order_by(EvidenceItem.event_date.asc()).all()
+
+        # Build structured data for template
+        recordings = []
+        for item in items:
+            lines = []
+            for line in (item.transcript or "").strip().split("\n"):
+                if line.startswith("[") and "]" in line:
+                    ts_str = line.split("]")[0].replace("[", "").strip()
+                    text = line.split("]", 1)[1].strip()
+                    parts = ts_str.split(":")
+                    seconds = int(parts[0]) * 60 + int(parts[1]) if len(parts) == 2 else 0
+                    lines.append({"ts": ts_str, "seconds": seconds, "text": text})
+            recordings.append({
+                "item": item,
+                "lines": lines,
+            })
+        return render_template("audio_evidence.html", recordings=recordings,
+                               category_filter=category_filter,
+                               severity_min=severity_min, search=search)
+
+    @app.route("/api/audio-evidence")
+    def api_audio_evidence():
+        items = EvidenceItem.query.filter(
+            EvidenceItem.evidence_type.in_(["audio", "voicemail"]),
+            EvidenceItem.transcript.isnot(None),
+        ).order_by(EvidenceItem.event_date.asc()).all()
+        result = []
+        for item in items:
+            lines = []
+            for line in (item.transcript or "").strip().split("\n"):
+                if line.startswith("[") and "]" in line:
+                    ts_str = line.split("]")[0].replace("[", "").strip()
+                    text = line.split("]", 1)[1].strip()
+                    parts = ts_str.split(":")
+                    seconds = int(parts[0]) * 60 + int(parts[1]) if len(parts) == 2 else 0
+                    lines.append({"ts": ts_str, "seconds": seconds, "text": text})
+            result.append({
+                "id": item.id,
+                "title": item.title,
+                "date": item.event_date.isoformat(),
+                "category": item.category,
+                "category_label": item.category_info.get("label", ""),
+                "category_color": item.category_info.get("color", "#666"),
+                "severity": item.severity,
+                "child_present": item.child_present,
+                "file_path": item.file_path,
+                "key_quotes": item.quote_list,
+                "description": item.description or "",
+                "people_present": item.people_present or "",
+                "lines": lines,
+            })
+        return jsonify(result)
+
+    # -- Exhibit Builder --
+
+    @app.route("/exhibits")
+    def exhibits_list():
+        exhibits = Exhibit.query.order_by(Exhibit.sort_order.asc()).all()
+        return render_template("exhibits.html", exhibits=exhibits)
+
+    @app.route("/exhibits/generate", methods=["POST"])
+    def exhibits_generate():
+        """Auto-generate exhibits from evidence grouped by category."""
+        # Clear existing exhibits
+        Exhibit.query.delete()
+
+        # Group evidence by category (excluding cooperation which goes last)
+        cat_order = [
+            "parental_alienation", "verbal_abuse", "false_accusations",
+            "communication_interference", "gatekeeping", "withholding",
+            "emotional_manipulation", "schedule_violations", "impact_on_child",
+            "financial_abuse", "third_party_witness", "documentation_of_cooperation",
+        ]
+
+        letter_idx = 0
+        letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+        for cat_key in cat_order:
+            items = EvidenceItem.query.filter_by(category=cat_key)\
+                .order_by(EvidenceItem.event_date.asc()).all()
+            if not items:
+                continue
+
+            cat_info = EVIDENCE_CATEGORIES.get(cat_key, {})
+            letter = letters[letter_idx] if letter_idx < 26 else f"A{letter_idx - 25}"
+
+            # Build narrative
+            date_start = items[0].event_date
+            date_end = items[-1].event_date
+            child_count = sum(1 for i in items if i.child_present)
+            sev_4_5 = sum(1 for i in items if i.severity >= 4)
+            max_sev = max(i.severity for i in items)
+
+            # Collect key quotes across all items (top 5 by severity)
+            top_items = sorted(items, key=lambda x: x.severity, reverse=True)[:5]
+            key_quotes = []
+            for ti in top_items:
+                for q in ti.quote_list[:1]:
+                    key_quotes.append(q)
+
+            narrative_parts = [
+                f"Exhibit {letter} documents {len(items)} incidents of {cat_info.get('label', cat_key)} "
+                f"spanning {date_start.strftime('%B %d, %Y')} through {date_end.strftime('%B %d, %Y')}.",
+            ]
+
+            if sev_4_5 > 0:
+                narrative_parts.append(
+                    f"{sev_4_5} of these incidents were rated severity 4 or 5 (serious to safety-level)."
+                )
+            if child_count > 0:
+                narrative_parts.append(
+                    f"The child was present or directly affected in {child_count} of these incidents."
+                )
+
+            # Evidence type breakdown
+            type_counts = {}
+            for i in items:
+                t = EVIDENCE_TYPES.get(i.evidence_type, {}).get("label", i.evidence_type)
+                type_counts[t] = type_counts.get(t, 0) + 1
+            type_summary = ", ".join(f"{v} {k}{'s' if v > 1 else ''}" for k, v in type_counts.items())
+            narrative_parts.append(f"Evidence sources: {type_summary}.")
+
+            if key_quotes:
+                narrative_parts.append("\nKey statements from the evidence:")
+                for q in key_quotes[:4]:
+                    narrative_parts.append(f'  - "{q}"')
+
+            exhibit = Exhibit(
+                letter=letter,
+                title=f"Exhibit {letter}: {cat_info.get('label', cat_key)}",
+                category=cat_key,
+                narrative="\n".join(narrative_parts),
+                evidence_ids=json.dumps([i.id for i in items]),
+                date_range_start=date_start,
+                date_range_end=date_end,
+                incident_count=len(items),
+                child_present_count=child_count,
+                max_severity=max_sev,
+                sort_order=letter_idx,
+            )
+            db.session.add(exhibit)
+            letter_idx += 1
+
+        db.session.commit()
+        flash(f"Generated {letter_idx} exhibits from evidence.", "success")
+        return redirect(url_for("exhibits_list"))
+
+    @app.route("/exhibits/<int:exhibit_id>")
+    def exhibit_detail(exhibit_id):
+        exhibit = Exhibit.query.get_or_404(exhibit_id)
+        evidence = EvidenceItem.query.filter(
+            EvidenceItem.id.in_(exhibit.evidence_id_list)
+        ).order_by(EvidenceItem.event_date.asc()).all()
+        return render_template("exhibit_detail.html", exhibit=exhibit, evidence=evidence)
+
+    @app.route("/exhibits/<int:exhibit_id>/edit", methods=["GET", "POST"])
+    def exhibit_edit(exhibit_id):
+        exhibit = Exhibit.query.get_or_404(exhibit_id)
+        if request.method == "POST":
+            exhibit.title = request.form.get("title", exhibit.title)
+            exhibit.narrative = request.form.get("narrative", "").strip() or None
+            evidence_ids = request.form.getlist("evidence_ids")
+            exhibit.evidence_ids = json.dumps([int(x) for x in evidence_ids]) if evidence_ids else "[]"
+
+            # Recalculate stats
+            items = EvidenceItem.query.filter(EvidenceItem.id.in_([int(x) for x in evidence_ids])).all()
+            if items:
+                exhibit.incident_count = len(items)
+                exhibit.child_present_count = sum(1 for i in items if i.child_present)
+                exhibit.max_severity = max(i.severity for i in items)
+                dates = [i.event_date for i in items]
+                exhibit.date_range_start = min(dates)
+                exhibit.date_range_end = max(dates)
+
+            db.session.commit()
+            flash(f"Exhibit {exhibit.letter} updated.", "success")
+            return redirect(url_for("exhibit_detail", exhibit_id=exhibit.id))
+
+        all_items = EvidenceItem.query.order_by(EvidenceItem.event_date.asc()).all()
+        return render_template("exhibit_edit.html", exhibit=exhibit, all_items=all_items)
+
+    @app.route("/print/exhibit/<int:exhibit_id>")
+    def print_exhibit(exhibit_id):
+        exhibit = Exhibit.query.get_or_404(exhibit_id)
+        evidence = EvidenceItem.query.filter(
+            EvidenceItem.id.in_(exhibit.evidence_id_list)
+        ).order_by(EvidenceItem.event_date.asc()).all()
+        return render_template("print_exhibit.html", exhibit=exhibit, evidence=evidence)
+
+    @app.route("/print/exhibits")
+    def print_all_exhibits():
+        exhibits = Exhibit.query.order_by(Exhibit.sort_order.asc()).all()
+        exhibit_data = []
+        for exhibit in exhibits:
+            evidence = EvidenceItem.query.filter(
+                EvidenceItem.id.in_(exhibit.evidence_id_list)
+            ).order_by(EvidenceItem.event_date.asc()).all()
+            exhibit_data.append({"exhibit": exhibit, "evidence": evidence})
+        return render_template("print_all_exhibits.html", exhibit_data=exhibit_data)
 
     return app
 

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>{{ exhibit.title }}</title>
+<style>
+  body { font-family: 'Times New Roman', serif; font-size: 11pt; color: #000; margin: 1in; line-height: 1.5; }
+  h1 { font-size: 18pt; border-bottom: 3px solid #000; padding-bottom: 8pt; margin-bottom: 4pt; }
+  h2 { font-size: 13pt; margin-top: 18pt; margin-bottom: 6pt; border-bottom: 1px solid #999; padding-bottom: 4pt; }
+  .cover-box { border: 2px solid #000; padding: 20pt; margin-bottom: 24pt; page-break-after: always; }
+  .exhibit-letter { font-size: 48pt; font-weight: 900; font-family: Arial, sans-serif; margin-bottom: 6pt; }
+  .meta { font-size: 9pt; color: #666; margin: 6pt 0; }
+  .stats-row { display: flex; gap: 20pt; margin: 12pt 0; }
+  .stat-box { border: 1px solid #999; padding: 8pt 14pt; text-align: center; }
+  .stat-box .num { font-size: 18pt; font-weight: 900; font-family: Arial, sans-serif; display: block; }
+  .stat-box .label { font-size: 8pt; text-transform: uppercase; color: #666; }
+  .narrative { font-size: 11pt; line-height: 1.7; margin-top: 14pt; white-space: pre-line; padding: 10pt; background: #f8f8f8; border: 1px solid #ddd; }
+  .item { border: 1px solid #ccc; padding: 10pt; margin-bottom: 8pt; page-break-inside: avoid; }
+  .item-num { font-weight: 900; font-family: Arial, sans-serif; font-size: 10pt; color: #666; }
+  .item-date { font-size: 9pt; color: #666; font-family: 'Courier New', monospace; }
+  .item-title { font-weight: bold; margin: 3pt 0; }
+  .item-type { font-size: 9pt; color: #666; }
+  .quote { border-left: 3pt solid #333; padding-left: 8pt; font-style: italic; margin: 5pt 0; font-size: 10pt; }
+  .child-flag { color: #c00; font-weight: bold; font-size: 9pt; }
+  .footer { margin-top: 24pt; border-top: 1px solid #ccc; padding-top: 6pt; font-size: 9pt; color: #666; }
+  .no-print { display: none; }
+  @media screen { body { max-width: 8in; margin: 0.5in auto; } .no-print { display: block; } .cover-box { page-break-after: auto; } }
+  @media print { .no-print { display: none !important; } }
+</style>
+</head>
+<body>
+<div class="no-print" style="margin-bottom:16pt; text-align:center;">
+  <button onclick="window.print()" style="padding:8pt 24pt; font-size:12pt; cursor:pointer;">Print This Exhibit</button>
+  <a href="/exhibits/{{ exhibit.id }}" style="margin-left:12pt;">Back to Exhibit</a>
+</div>
+
+{% set cat = categories.get(exhibit.category, {}) %}
+
+<!-- COVER SHEET -->
+<div class="cover-box">
+  <div class="exhibit-letter">EXHIBIT {{ exhibit.letter }}</div>
+  <h1>{{ cat.get('label', exhibit.category) }}</h1>
+  <div class="meta">
+    Category: {{ cat.get('label', exhibit.category) }} |
+    {% if exhibit.date_range_start and exhibit.date_range_end %}
+    Date Range: {{ exhibit.date_range_start.strftime('%B %d, %Y') }} through {{ exhibit.date_range_end.strftime('%B %d, %Y') }} |
+    {% endif %}
+    Generated: {{ now.strftime('%B %d, %Y') }}
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-box">
+      <span class="num">{{ exhibit.incident_count }}</span>
+      <span class="label">Incidents</span>
+    </div>
+    <div class="stat-box">
+      <span class="num">{{ exhibit.max_severity }}/5</span>
+      <span class="label">Max Severity</span>
+    </div>
+    {% if exhibit.child_present_count > 0 %}
+    <div class="stat-box">
+      <span class="num" style="color:#c00;">{{ exhibit.child_present_count }}</span>
+      <span class="label">Child Present</span>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if exhibit.narrative %}
+  <div class="narrative">{{ exhibit.narrative }}</div>
+  {% endif %}
+</div>
+
+<!-- EVIDENCE ITEMS -->
+<h2>Supporting Evidence ({{ evidence|length }} items, chronological order)</h2>
+
+{% for item in evidence %}
+<div class="item">
+  <span class="item-num">#{{ loop.index }}</span>
+  <div class="item-date">{{ item.event_date.strftime('%A, %B %d, %Y — %I:%M %p') }}</div>
+  <div class="item-title">{{ item.title }}</div>
+  <div class="item-type">
+    Type: {{ item.type_info.get('label', item.evidence_type) }} |
+    Severity: {{ item.severity }}/5
+    {% if item.child_present %}<span class="child-flag"> | CHILD PRESENT</span>{% endif %}
+  </div>
+  {% if item.description %}
+  <p style="margin:4pt 0; font-size:10pt;">{{ item.description }}</p>
+  {% endif %}
+  {% for q in item.quote_list[:3] %}
+  <div class="quote">"{{ q }}"</div>
+  {% endfor %}
+</div>
+{% endfor %}
+
+<div class="footer">
+  Confidential — Prepared for legal proceedings. {{ exhibit.title }}. Page generated {{ now.strftime('%m/%d/%Y') }}.
+</div>
+</body>
+</html>

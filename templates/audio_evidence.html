@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+{% block title %}Audio Evidence{% endblock %}
+{% block head %}
+<style>
+.audio-controls {
+  display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;
+  margin-bottom: 1.5rem; padding: 1rem;
+  background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);
+}
+.audio-controls select, .audio-controls input { width: auto; min-width: 160px; }
+
+/* Recording card */
+.rec-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  margin-bottom: 1.5rem; overflow: hidden;
+}
+.rec-header {
+  padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.75rem;
+  cursor: pointer;
+}
+.rec-header:hover { background: var(--surface-2); }
+.rec-title { font-weight: 600; font-size: 1rem; margin-bottom: 0.25rem; }
+.rec-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; font-size: 0.8rem; }
+.rec-date { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--text-dim); }
+.rec-desc { font-size: 0.85rem; color: var(--text-dim); margin-top: 0.35rem; max-width: 700px; }
+
+/* Player bar */
+.rec-player {
+  padding: 0.75rem 1.25rem; background: var(--bg); border-bottom: 1px solid var(--border);
+  display: none;
+}
+.rec-player.active { display: block; }
+.rec-player audio { width: 100%; }
+.now-playing-label {
+  font-size: 0.75rem; color: var(--accent); margin-bottom: 0.35rem;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Transcript table */
+.rec-transcript { display: none; max-height: 500px; overflow-y: auto; }
+.rec-transcript.open { display: block; }
+
+.tx-table { width: 100%; border-collapse: collapse; }
+.tx-table th {
+  position: sticky; top: 0; background: var(--surface-2); padding: 0.5rem 0.75rem;
+  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-dim); text-align: left; border-bottom: 1px solid var(--border);
+}
+.tx-row {
+  border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+  cursor: pointer; transition: background 0.15s;
+}
+.tx-row:hover { background: var(--surface-2); }
+.tx-row.playing { background: rgba(88, 166, 255, 0.1); border-left: 3px solid var(--accent); }
+.tx-row.highlight { background: rgba(210, 153, 34, 0.12); }
+.tx-row.key-quote { background: rgba(248, 81, 73, 0.08); }
+.tx-row.key-quote td:first-child::after { content: ' *'; color: var(--danger); font-weight: 700; }
+
+.tx-ts {
+  padding: 0.4rem 0.75rem; font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem; color: var(--accent); white-space: nowrap; width: 60px;
+  vertical-align: top;
+}
+.tx-text { padding: 0.4rem 0.75rem; font-size: 0.88rem; line-height: 1.5; }
+
+/* Key quotes callout */
+.rec-quotes {
+  padding: 0.5rem 1.25rem; border-bottom: 1px solid var(--border);
+  display: none;
+}
+.rec-quotes.open { display: block; }
+.rec-quote-item {
+  padding: 0.35rem 0.6rem; margin: 0.25rem 0;
+  border-left: 3px solid var(--danger); background: rgba(248, 81, 73, 0.06);
+  font-style: italic; font-size: 0.85rem; color: var(--text-dim);
+  cursor: pointer;
+}
+.rec-quote-item:hover { background: rgba(248, 81, 73, 0.12); }
+
+/* Stats bar */
+.stats-row {
+  display: flex; gap: 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;
+}
+.stat-pill {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+  padding: 0.4rem 1rem; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem;
+}
+.stat-pill .num { font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+
+/* Search highlight */
+.search-hl { background: rgba(210, 153, 34, 0.3); padding: 0.1rem 0.15rem; border-radius: 2px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+  <h1>Audio Evidence</h1>
+  <span style="color:var(--text-dim); font-size:0.85rem;">{{ recordings|length }} recordings | Click any line to play from that point</span>
+</div>
+
+<form class="audio-controls" method="GET" action="/audio-evidence">
+  <select name="category">
+    <option value="">All Categories</option>
+    {% for key, cat in categories.items() %}
+    <option value="{{ key }}" {% if category_filter == key %}selected{% endif %}>{{ cat.icon }} {{ cat.label }}</option>
+    {% endfor %}
+  </select>
+  <select name="severity_min">
+    <option value="">Any Severity</option>
+    <option value="3" {% if severity_min == 3 %}selected{% endif %}>3+ Significant</option>
+    <option value="4" {% if severity_min == 4 %}selected{% endif %}>4+ Serious</option>
+  </select>
+  <input type="text" name="q" value="{{ search }}" placeholder="Search transcripts..." style="min-width:220px;">
+  <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+  <a href="/audio-evidence" class="btn btn-outline btn-sm">Clear</a>
+</form>
+
+<div class="stats-row">
+  <div class="stat-pill"><span class="num">{{ recordings|length }}</span> recordings</div>
+  <div class="stat-pill"><span class="num">{{ recordings|map(attribute='lines')|map('length')|sum }}</span> transcript lines</div>
+  <div class="stat-pill" style="border-color:var(--danger);"><span class="num" style="color:var(--danger);">{{ recordings|selectattr('item.child_present')|list|length }}</span> child present</div>
+</div>
+
+{% for rec in recordings %}
+{% set item = rec.item %}
+<div class="rec-card" id="rec-{{ item.id }}">
+  <!-- Header (click to expand) -->
+  <div class="rec-header" onclick="toggleRecording({{ item.id }})">
+    <div>
+      <div class="rec-date">{{ item.event_date.strftime('%a, %b %d %Y — %I:%M %p') }}</div>
+      <div class="rec-title">{{ item.title }}</div>
+      <div class="rec-meta">
+        <span class="badge" style="background:{{ item.category_info.get('color', '#666') }};">{{ item.category_info.get('label', item.category) }}</span>
+        <span class="badge severity-{{ item.severity }}">Sev {{ item.severity }}</span>
+        {% if item.child_present %}<span class="child-present-flag">Child Present</span>{% endif %}
+        <span style="color:var(--text-dim);">{{ rec.lines|length }} lines</span>
+      </div>
+      {% if item.description %}
+      <div class="rec-desc">{{ item.description }}</div>
+      {% endif %}
+    </div>
+    <div style="font-size:1.2rem; color:var(--text-dim);" id="toggle-icon-{{ item.id }}">&#9654;</div>
+  </div>
+
+  <!-- Audio Player -->
+  <div class="rec-player" id="player-{{ item.id }}">
+    <div class="now-playing-label" id="now-playing-{{ item.id }}">Ready to play</div>
+    {% if item.file_path %}
+    <audio id="audio-{{ item.id }}" preload="none" ontimeupdate="highlightCurrentLine({{ item.id }})">
+      <source src="/{{ item.file_path }}" type="audio/mp4">
+      <source src="/{{ item.file_path }}" type="audio/mpeg">
+      Your browser does not support audio playback.
+    </audio>
+    {% endif %}
+  </div>
+
+  <!-- Key Quotes -->
+  {% if item.quote_list %}
+  <div class="rec-quotes" id="quotes-{{ item.id }}">
+    {% for q in item.quote_list %}
+    <div class="rec-quote-item" onclick="findAndPlayQuote({{ item.id }}, '{{ q[:50]|e }}')" title="Click to find in transcript and play">
+      "{{ q }}"
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Transcript Table -->
+  <div class="rec-transcript" id="transcript-{{ item.id }}">
+    <table class="tx-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>What Was Said</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in rec.lines %}
+        <tr class="tx-row {% if search and search.lower() in line.text.lower() %}highlight{% endif %}"
+            id="line-{{ item.id }}-{{ loop.index0 }}"
+            data-seconds="{{ line.seconds }}"
+            data-item-id="{{ item.id }}"
+            onclick="playFromLine({{ item.id }}, {{ line.seconds }}, this)">
+          <td class="tx-ts">{{ line.ts }}</td>
+          <td class="tx-text">
+            {% if search %}
+              {{ line.text|replace(search, '<span class="search-hl">' + search + '</span>')|safe }}
+            {% else %}
+              {{ line.text }}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endfor %}
+
+{% if not recordings %}
+<div class="card" style="text-align:center; padding:3rem;">
+  <p>No audio evidence matching your filters.</p>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Track open recordings
+const openRecordings = new Set();
+let currentlyPlaying = null;
+
+function toggleRecording(id) {
+  const player = document.getElementById('player-' + id);
+  const transcript = document.getElementById('transcript-' + id);
+  const quotes = document.getElementById('quotes-' + id);
+  const icon = document.getElementById('toggle-icon-' + id);
+
+  if (openRecordings.has(id)) {
+    openRecordings.delete(id);
+    player.classList.remove('active');
+    transcript.classList.remove('open');
+    if (quotes) quotes.classList.remove('open');
+    icon.innerHTML = '&#9654;';
+    // Pause audio
+    const audio = document.getElementById('audio-' + id);
+    if (audio) audio.pause();
+  } else {
+    openRecordings.add(id);
+    player.classList.add('active');
+    transcript.classList.add('open');
+    if (quotes) quotes.classList.add('open');
+    icon.innerHTML = '&#9660;';
+  }
+}
+
+function playFromLine(itemId, seconds, rowEl) {
+  const audio = document.getElementById('audio-' + itemId);
+  if (!audio) return;
+
+  // Ensure recording is open
+  if (!openRecordings.has(itemId)) {
+    toggleRecording(itemId);
+  }
+
+  // Clear previous playing highlights
+  document.querySelectorAll('.tx-row.playing').forEach(r => r.classList.remove('playing'));
+  rowEl.classList.add('playing');
+
+  // Seek to 10 seconds before the statement
+  const seekTo = Math.max(0, seconds - 10);
+  audio.currentTime = seekTo;
+  audio.play();
+
+  currentlyPlaying = itemId;
+
+  // Update now-playing label
+  const label = document.getElementById('now-playing-' + itemId);
+  const text = rowEl.querySelector('.tx-text').textContent.trim();
+  label.textContent = 'Playing from ' + formatTime(seekTo) + ' — "' + text.substring(0, 60) + (text.length > 60 ? '...' : '') + '"';
+
+  // Scroll row into view
+  rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function highlightCurrentLine(itemId) {
+  const audio = document.getElementById('audio-' + itemId);
+  if (!audio) return;
+
+  const currentTime = audio.currentTime;
+  const rows = document.querySelectorAll('#transcript-' + itemId + ' .tx-row');
+
+  let activeRow = null;
+  rows.forEach(row => {
+    const rowTime = parseInt(row.dataset.seconds);
+    if (rowTime <= currentTime) {
+      activeRow = row;
+    }
+  });
+
+  // Only update if changed
+  if (activeRow && !activeRow.classList.contains('playing')) {
+    rows.forEach(r => r.classList.remove('playing'));
+    activeRow.classList.add('playing');
+
+    // Keep it visible
+    const container = document.getElementById('transcript-' + itemId);
+    const rowTop = activeRow.offsetTop - container.offsetTop;
+    const containerScroll = container.scrollTop;
+    const containerHeight = container.clientHeight;
+    if (rowTop < containerScroll || rowTop > containerScroll + containerHeight - 50) {
+      activeRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+}
+
+function findAndPlayQuote(itemId, quoteFragment) {
+  // Find the transcript line containing this quote
+  const rows = document.querySelectorAll('#transcript-' + itemId + ' .tx-row');
+  for (const row of rows) {
+    const text = row.querySelector('.tx-text').textContent.trim().toLowerCase();
+    if (text.includes(quoteFragment.toLowerCase())) {
+      const seconds = parseInt(row.dataset.seconds);
+      playFromLine(itemId, seconds, row);
+      return;
+    }
+  }
+}
+
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0');
+}
+
+// Mark key quotes in transcript
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.rec-card').forEach(card => {
+    const id = card.id.replace('rec-', '');
+    const quoteItems = card.querySelectorAll('.rec-quote-item');
+    const rows = card.querySelectorAll('.tx-row');
+
+    quoteItems.forEach(qi => {
+      const quoteText = qi.textContent.replace(/^"|"$/g, '').trim().toLowerCase().substring(0, 40);
+      rows.forEach(row => {
+        const rowText = row.querySelector('.tx-text').textContent.trim().toLowerCase();
+        if (rowText.includes(quoteText)) {
+          row.classList.add('key-quote');
+        }
+      });
+    });
+  });
+});
+</script>
+{% endblock %}

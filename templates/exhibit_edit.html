@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ exhibit.title }}{% endblock %}
+{% block head %}
+<style>
+.evidence-picker { max-height: 500px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.pick-item {
+  display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid rgba(48,54,61,0.3); font-size: 0.85rem;
+}
+.pick-item:hover { background: var(--surface-2); }
+.pick-item input { margin-top: 0.2rem; }
+.pick-date { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom:1.5rem;">Edit {{ exhibit.title }}</h1>
+
+<form method="POST" action="/exhibits/{{ exhibit.id }}/edit">
+  <div class="form-group" style="margin-bottom:1rem;">
+    <label>Title</label>
+    <input type="text" name="title" value="{{ exhibit.title }}" required>
+  </div>
+
+  <div class="form-group" style="margin-bottom:1rem;">
+    <label>Narrative (Cover Sheet)</label>
+    <textarea name="narrative" rows="10" style="font-family:'JetBrains Mono',monospace; font-size:0.85rem;">{{ exhibit.narrative or '' }}</textarea>
+  </div>
+
+  <div class="form-group" style="margin-bottom:1rem;">
+    <label>Evidence Items ({{ exhibit.evidence_id_list|length }} selected)</label>
+    <div class="evidence-picker">
+      {% for item in all_items %}
+      <label class="pick-item">
+        <input type="checkbox" name="evidence_ids" value="{{ item.id }}"
+               {% if item.id in exhibit.evidence_id_list %}checked{% endif %}>
+        <span class="pick-date">{{ item.event_date.strftime('%m/%d/%y') }}</span>
+        <span style="flex:1;">{{ item.title[:80] }}</span>
+        <span class="badge severity-{{ item.severity }}" style="font-size:0.7rem;">{{ item.severity }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div style="display:flex; gap:0.75rem; margin-top:1.5rem;">
+    <button type="submit" class="btn btn-primary">Save Exhibit</button>
+    <a href="/exhibits/{{ exhibit.id }}" class="btn btn-outline">Cancel</a>
+  </div>
+</form>
+{% endblock %}

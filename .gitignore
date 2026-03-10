@@ -4,5 +4,8 @@ instance/
 *.db
 uploads/
 transcripts/
+evidence_inbox/
+temp_wavs/
+audio_evidence_report.csv
 .env
 venv/

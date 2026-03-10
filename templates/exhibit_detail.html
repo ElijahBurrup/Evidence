@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}{{ exhibit.title }}{% endblock %}
+{% block head %}
+<style>
+.cover-sheet {
+  background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius);
+  padding: 2rem; margin-bottom: 2rem;
+}
+.cover-letter {
+  font-size: 3rem; font-weight: 800; font-family: 'JetBrains Mono', monospace;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 80px; height: 80px; border-radius: var(--radius); margin-bottom: 1rem;
+}
+.cover-narrative {
+  font-size: 0.95rem; line-height: 1.8; white-space: pre-line; margin-top: 1rem;
+  padding: 1rem; background: var(--bg); border-radius: var(--radius); border: 1px solid var(--border);
+}
+.cover-stats {
+  display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 1.25rem;
+}
+.cover-stat {
+  text-align: center; padding: 0.75rem 1.25rem;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.cover-stat .num { font-size: 1.5rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; display: block; }
+.cover-stat .label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+
+.ev-item {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1rem 1.25rem; margin-bottom: 0.75rem; display: flex; gap: 1rem; align-items: flex-start;
+}
+.ev-item:hover { border-color: var(--accent); }
+.ev-num {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-dim);
+  min-width: 30px; text-align: center; padding-top: 0.2rem;
+}
+.ev-body { flex: 1; min-width: 0; }
+.ev-date { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--text-dim); }
+.ev-title { font-weight: 600; margin: 0.15rem 0; }
+.ev-title a { color: var(--text); text-decoration: none; }
+.ev-title a:hover { color: var(--accent); }
+.ev-meta { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; font-size: 0.8rem; margin-top: 0.25rem; }
+.ev-desc { font-size: 0.85rem; color: var(--text-dim); margin-top: 0.35rem; }
+.ev-quote {
+  font-style: italic; font-size: 0.83rem; color: var(--text-dim);
+  border-left: 3px solid var(--danger); padding-left: 0.6rem; margin: 0.35rem 0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% set cat = categories.get(exhibit.category, {}) %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.75rem;">
+  <a href="/exhibits" style="color:var(--text-dim); font-size:0.85rem;">All Exhibits</a>
+  <div style="display:flex; gap:0.5rem;">
+    <a href="/exhibits/{{ exhibit.id }}/edit" class="btn btn-outline btn-sm">Edit Exhibit</a>
+    <a href="/print/exhibit/{{ exhibit.id }}" class="btn btn-print btn-sm" target="_blank">Print Exhibit</a>
+  </div>
+</div>
+
+<!-- Cover Sheet -->
+<div class="cover-sheet">
+  <div class="cover-letter" style="background:{{ cat.get('color', '#666') }}22; color:{{ cat.get('color', '#666') }}; border: 2px solid {{ cat.get('color', '#666') }};">
+    {{ exhibit.letter }}
+  </div>
+  <h1 style="font-size:1.5rem; margin-bottom:0.25rem;">{{ exhibit.title }}</h1>
+  <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+    <span class="badge" style="background:{{ cat.get('color', '#666') }};">{{ cat.get('label', exhibit.category) }}</span>
+    {% if exhibit.date_range_start and exhibit.date_range_end %}
+    <span style="font-size:0.8rem; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">
+      {{ exhibit.date_range_start.strftime('%b %d, %Y') }} — {{ exhibit.date_range_end.strftime('%b %d, %Y') }}
+    </span>
+    {% endif %}
+  </div>
+
+  <div class="cover-stats">
+    <div class="cover-stat">
+      <span class="num">{{ exhibit.incident_count }}</span>
+      <span class="label">Incidents</span>
+    </div>
+    <div class="cover-stat">
+      <span class="num">{{ exhibit.max_severity }}</span>
+      <span class="label">Max Severity</span>
+    </div>
+    {% if exhibit.child_present_count > 0 %}
+    <div class="cover-stat" style="border-color:var(--danger);">
+      <span class="num" style="color:var(--danger);">{{ exhibit.child_present_count }}</span>
+      <span class="label">Child Present</span>
+    </div>
+    {% endif %}
+    <div class="cover-stat">
+      <span class="num">{{ evidence|selectattr('severity', 'ge', 4)|list|length }}</span>
+      <span class="label">Sev 4-5</span>
+    </div>
+  </div>
+
+  {% if exhibit.narrative %}
+  <div class="cover-narrative">{{ exhibit.narrative }}</div>
+  {% endif %}
+</div>
+
+<!-- Evidence Chain -->
+<h2 style="margin-bottom:1rem;">Supporting Evidence ({{ evidence|length }} items, chronological)</h2>
+
+{% for item in evidence %}
+<div class="ev-item">
+  <div class="ev-num">{{ loop.index }}</div>
+  <div class="ev-body">
+    <div class="ev-date">{{ item.event_date.strftime('%a, %b %d %Y — %I:%M %p') }}</div>
+    <div class="ev-title"><a href="/evidence/{{ item.id }}">{{ item.title }}</a></div>
+    <div class="ev-meta">
+      <span>{{ item.type_info.get('icon', '') }} {{ item.type_info.get('label', '') }}</span>
+      <span class="badge severity-{{ item.severity }}">Sev {{ item.severity }}</span>
+      {% if item.child_present %}<span class="child-present-flag">Child Present</span>{% endif %}
+    </div>
+    {% if item.description %}
+    <div class="ev-desc">{{ item.description }}</div>
+    {% endif %}
+    {% for q in item.quote_list[:2] %}
+    <div class="ev-quote">"{{ q }}"</div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

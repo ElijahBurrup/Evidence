@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Complete Exhibit Package</title>
+<style>
+  body { font-family: 'Times New Roman', serif; font-size: 11pt; color: #000; margin: 1in; line-height: 1.5; }
+  h1 { font-size: 18pt; border-bottom: 3px solid #000; padding-bottom: 8pt; margin-bottom: 8pt; }
+  h2 { font-size: 14pt; margin-top: 10pt; margin-bottom: 6pt; }
+  h3 { font-size: 12pt; margin-top: 14pt; border-bottom: 1px solid #999; padding-bottom: 4pt; }
+
+  .toc { margin: 18pt 0; }
+  .toc-entry { display: flex; justify-content: space-between; padding: 4pt 0; border-bottom: 1px dotted #ccc; font-size: 11pt; }
+  .toc-letter { font-weight: 900; min-width: 40pt; }
+
+  .exhibit-section { page-break-before: always; }
+  .exhibit-header { border: 2px solid #000; padding: 16pt; margin-bottom: 14pt; }
+  .exhibit-letter-big { font-size: 36pt; font-weight: 900; font-family: Arial, sans-serif; }
+  .meta { font-size: 9pt; color: #666; margin: 4pt 0; }
+  .narrative { font-size: 10pt; line-height: 1.6; white-space: pre-line; margin-top: 10pt; padding: 8pt; background: #f8f8f8; border: 1px solid #ddd; }
+
+  .item { border: 1px solid #ccc; padding: 8pt; margin-bottom: 6pt; page-break-inside: avoid; font-size: 10pt; }
+  .item-date { font-size: 8pt; color: #666; font-family: 'Courier New', monospace; }
+  .item-title { font-weight: bold; margin: 2pt 0; font-size: 10pt; }
+  .item-type { font-size: 8pt; color: #666; }
+  .quote { border-left: 3pt solid #333; padding-left: 6pt; font-style: italic; margin: 4pt 0; font-size: 9pt; }
+  .child-flag { color: #c00; font-weight: bold; font-size: 8pt; }
+
+  .footer { margin-top: 18pt; border-top: 1px solid #ccc; padding-top: 6pt; font-size: 9pt; color: #666; }
+  .no-print { display: none; }
+  @media screen { body { max-width: 8in; margin: 0.5in auto; } .no-print { display: block; } .exhibit-section { page-break-before: auto; border-top: 3px solid #000; padding-top: 18pt; margin-top: 24pt; } }
+  @media print { .no-print { display: none !important; } }
+</style>
+</head>
+<body>
+<div class="no-print" style="margin-bottom:16pt; text-align:center;">
+  <button onclick="window.print()" style="padding:8pt 24pt; font-size:12pt; cursor:pointer;">Print All Exhibits</button>
+  <a href="/exhibits" style="margin-left:12pt;">Back to Exhibits</a>
+</div>
+
+<!-- TITLE PAGE -->
+<div style="text-align:center; padding:60pt 0;">
+  <h1 style="border:none; font-size:24pt;">EXHIBIT PACKAGE</h1>
+  <p style="font-size:14pt; margin-top:12pt;">In the Matter of Custody</p>
+  <p style="font-size:11pt; color:#666; margin-top:24pt;">
+    {{ exhibit_data|length }} Exhibits |
+    {{ exhibit_data|map(attribute='evidence')|map('length')|sum }} Evidence Items |
+    Generated {{ now.strftime('%B %d, %Y') }}
+  </p>
+  <p style="font-size:9pt; color:#999; margin-top:36pt;">Confidential — Prepared for legal proceedings</p>
+</div>
+
+<!-- TABLE OF CONTENTS -->
+<div style="page-break-before:always;">
+  <h2>Table of Contents</h2>
+  <div class="toc">
+    {% for ed in exhibit_data %}
+    {% set cat = categories.get(ed.exhibit.category, {}) %}
+    <div class="toc-entry">
+      <span>
+        <span class="toc-letter">{{ ed.exhibit.letter }}.</span>
+        {{ cat.get('label', ed.exhibit.category) }}
+      </span>
+      <span>{{ ed.evidence|length }} items</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- EACH EXHIBIT -->
+{% for ed in exhibit_data %}
+{% set exhibit = ed.exhibit %}
+{% set evidence = ed.evidence %}
+{% set cat = categories.get(exhibit.category, {}) %}
+
+<div class="exhibit-section">
+  <div class="exhibit-header">
+    <div class="exhibit-letter-big">EXHIBIT {{ exhibit.letter }}</div>
+    <h2 style="margin:4pt 0;">{{ cat.get('label', exhibit.category) }}</h2>
+    <div class="meta">
+      {{ exhibit.incident_count }} incidents |
+      Max severity: {{ exhibit.max_severity }}/5 |
+      {% if exhibit.child_present_count > 0 %}Child present: {{ exhibit.child_present_count }} |{% endif %}
+      {% if exhibit.date_range_start and exhibit.date_range_end %}
+      {{ exhibit.date_range_start.strftime('%B %d, %Y') }} — {{ exhibit.date_range_end.strftime('%B %d, %Y') }}
+      {% endif %}
+    </div>
+    {% if exhibit.narrative %}
+    <div class="narrative">{{ exhibit.narrative }}</div>
+    {% endif %}
+  </div>
+
+  <h3>Supporting Evidence</h3>
+  {% for item in evidence %}
+  <div class="item">
+    <strong>#{{ loop.index }}</strong>
+    <div class="item-date">{{ item.event_date.strftime('%A, %B %d, %Y — %I:%M %p') }}</div>
+    <div class="item-title">{{ item.title }}</div>
+    <div class="item-type">
+      {{ item.type_info.get('label', item.evidence_type) }} | Severity: {{ item.severity }}/5
+      {% if item.child_present %}<span class="child-flag"> | CHILD PRESENT</span>{% endif %}
+    </div>
+    {% if item.description %}
+    <p style="margin:3pt 0;">{{ item.description }}</p>
+    {% endif %}
+    {% for q in item.quote_list[:2] %}
+    <div class="quote">"{{ q }}"</div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
+
+<div class="footer">
+  Confidential — Prepared for legal proceedings. Complete exhibit package. Generated {{ now.strftime('%m/%d/%Y') }}.
+</div>
+</body>
+</html>

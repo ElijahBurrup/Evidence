@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Exhibits{% endblock %}
+{% block head %}
+<style>
+.exhibit-grid { display: grid; gap: 1rem; }
+.exhibit-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1.25rem; display: flex; gap: 1.25rem; align-items: flex-start;
+  transition: border-color 0.2s;
+}
+.exhibit-card:hover { border-color: var(--accent); }
+.exhibit-letter {
+  font-size: 2rem; font-weight: 800; font-family: 'JetBrains Mono', monospace;
+  min-width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius); flex-shrink: 0;
+}
+.exhibit-stats {
+  display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem; font-size: 0.8rem;
+}
+.exhibit-stat {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+  padding: 0.2rem 0.6rem; display: flex; align-items: center; gap: 0.3rem;
+}
+.exhibit-stat .num { font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.exhibit-date-range { font-size: 0.78rem; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; margin-top: 0.25rem; }
+.exhibit-narrative-preview { font-size: 0.85rem; color: var(--text-dim); margin-top: 0.5rem; line-height: 1.5; }
+
+.summary-bar {
+  display: flex; gap: 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;
+  padding: 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.summary-stat { text-align: center; }
+.summary-stat .big { font-size: 1.8rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+.summary-stat .label { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.75rem;">
+  <h1>Exhibit Builder</h1>
+  <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+    <form method="POST" action="/exhibits/generate" style="display:inline;">
+      <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('This will regenerate all exhibits from current evidence. Continue?')">
+        Auto-Generate Exhibits
+      </button>
+    </form>
+    {% if exhibits %}
+    <a href="/print/exhibits" class="btn btn-print btn-sm" target="_blank">Print All Exhibits</a>
+    {% endif %}
+  </div>
+</div>
+
+<p style="color:var(--text-dim); font-size:0.9rem; margin-bottom:1.5rem;">
+  Exhibits group evidence into lettered sections (A, B, C...) for court presentation. Each exhibit has a cover sheet with narrative summary and links to all supporting evidence.
+</p>
+
+{% if exhibits %}
+<div class="summary-bar">
+  <div class="summary-stat">
+    <div class="big">{{ exhibits|length }}</div>
+    <div class="label">Exhibits</div>
+  </div>
+  <div class="summary-stat">
+    <div class="big">{{ exhibits|map(attribute='incident_count')|sum }}</div>
+    <div class="label">Total Items</div>
+  </div>
+  <div class="summary-stat">
+    <div class="big" style="color:var(--danger);">{{ exhibits|map(attribute='child_present_count')|sum }}</div>
+    <div class="label">Child Present</div>
+  </div>
+  <div class="summary-stat">
+    <div class="big">{{ exhibits|map(attribute='max_severity')|max }}</div>
+    <div class="label">Max Severity</div>
+  </div>
+</div>
+
+<div class="exhibit-grid">
+  {% for exhibit in exhibits %}
+  {% set cat = categories.get(exhibit.category, {}) %}
+  <a href="/exhibits/{{ exhibit.id }}" style="text-decoration:none; color:inherit;">
+    <div class="exhibit-card">
+      <div class="exhibit-letter" style="background:{{ cat.get('color', '#666') }}22; color:{{ cat.get('color', '#666') }}; border: 2px solid {{ cat.get('color', '#666') }};">
+        {{ exhibit.letter }}
+      </div>
+      <div style="flex:1; min-width:0;">
+        <div style="font-weight:600; font-size:1.05rem;">{{ exhibit.title }}</div>
+        <div class="exhibit-date-range">
+          {% if exhibit.date_range_start and exhibit.date_range_end %}
+          {{ exhibit.date_range_start.strftime('%b %d, %Y') }} — {{ exhibit.date_range_end.strftime('%b %d, %Y') }}
+          {% endif %}
+        </div>
+        <div class="exhibit-stats">
+          <span class="exhibit-stat"><span class="num">{{ exhibit.incident_count }}</span> incidents</span>
+          <span class="exhibit-stat">Max sev <span class="num">{{ exhibit.max_severity }}</span></span>
+          {% if exhibit.child_present_count > 0 %}
+          <span class="exhibit-stat" style="border-color:var(--danger);"><span class="num" style="color:var(--danger);">{{ exhibit.child_present_count }}</span> child present</span>
+          {% endif %}
+        </div>
+        {% if exhibit.narrative %}
+        <div class="exhibit-narrative-preview">{{ exhibit.narrative.split('\n')[0][:200] }}{% if exhibit.narrative|length > 200 %}...{% endif %}</div>
+        {% endif %}
+      </div>
+      <div style="font-size:0.85rem; color:var(--text-dim); white-space:nowrap;">
+        <span class="badge" style="background:{{ cat.get('color', '#666') }};">{{ cat.get('label', exhibit.category) }}</span>
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="card" style="text-align:center; padding:3rem;">
+  <p style="margin-bottom:1rem;">No exhibits yet. Click "Auto-Generate Exhibits" to build them from your evidence.</p>
+  <form method="POST" action="/exhibits/generate">
+    <button type="submit" class="btn btn-primary">Generate Exhibits Now</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
