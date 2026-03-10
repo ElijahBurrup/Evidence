@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Search{% endblock %}
+{% block content %}
+<h1 style="margin-bottom:1.5rem;">Search Evidence</h1>
+
+<form method="GET" class="search-bar">
+  <input type="text" name="q" value="{{ q }}" placeholder="Search transcripts, texts, quotes, descriptions, tags..." autofocus>
+  <button type="submit" class="btn btn-primary">Search</button>
+</form>
+
+{% if q %}
+<p style="color:var(--text-dim); margin-bottom:1rem; font-size:0.85rem;">
+  {{ results|length }} result{{ 's' if results|length != 1 }} for "{{ q }}"
+</p>
+
+{% if results %}
+<div class="card">
+  {% for item in results %}
+  <div class="search-result">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+      <a href="/evidence/{{ item.id }}" style="font-weight:600;">{{ item.title }}</a>
+      <span class="search-result-date">{{ item.event_date.strftime('%m/%d/%Y %I:%M %p') }}</span>
+    </div>
+    <div style="display:flex; gap:0.5rem; margin-top:0.25rem;">
+      <span class="badge" style="background:{{ item.category_info.get('color', '#666') }}; font-size:0.7rem;">{{ item.category_info.get('label', '') }}</span>
+      <span style="font-size:0.78rem; color:var(--text-dim);">{{ item.type_info.get('icon', '') }} {{ item.type_info.get('label', '') }}</span>
+    </div>
+    {% if item.description %}
+    <p style="font-size:0.85rem; color:var(--text-dim); margin-top:0.35rem;">{{ item.description[:200] }}</p>
+    {% endif %}
+    {% for quote in item.quote_list[:1] %}
+    <div class="tl-quote" style="margin-top:0.35rem;">"{{ quote }}"</div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p style="color:var(--text-dim);">No results found. Try different keywords.</p>
+{% endif %}
+{% endif %}
+{% endblock %}

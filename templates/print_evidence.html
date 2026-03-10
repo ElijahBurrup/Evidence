@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Evidence #{{ item.id }}: {{ item.title }}</title>
+<style>
+  body { font-family: 'Times New Roman', serif; font-size: 11pt; color: #000; margin: 1in; line-height: 1.5; }
+  h1 { font-size: 14pt; border-bottom: 2px solid #000; padding-bottom: 6pt; margin-bottom: 12pt; }
+  .field { margin-bottom: 8pt; }
+  .field-label { font-weight: bold; font-size: 9pt; text-transform: uppercase; color: #666; letter-spacing: 1px; }
+  .field-value { margin-top: 2pt; }
+  .quote { border-left: 3pt solid #333; padding-left: 8pt; font-style: italic; margin: 4pt 0; }
+  .text-block { background: #f5f5f5; border: 1px solid #ddd; padding: 10pt; font-family: 'Courier New', monospace; font-size: 9pt; white-space: pre-wrap; margin-top: 4pt; }
+  .child-flag { color: #c00; font-weight: bold; }
+  table { width: 100%; border-collapse: collapse; margin: 6pt 0; }
+  td { padding: 4pt 8pt; border: 1px solid #ccc; font-size: 10pt; vertical-align: top; }
+  td:first-child { font-weight: bold; width: 150pt; background: #f9f9f9; }
+  .no-print { display: none; }
+  @media screen { body { max-width: 8in; margin: 1in auto; } .no-print { display: block; } }
+  @media print { .no-print { display: none; } }
+</style>
+</head>
+<body>
+<div class="no-print" style="margin-bottom:20pt; text-align:center;">
+  <button onclick="window.print()" style="padding:8pt 24pt; font-size:12pt; cursor:pointer;">Print This Evidence</button>
+  <a href="/evidence/{{ item.id }}" style="margin-left:12pt;">Back to Detail</a>
+</div>
+
+<h1>Evidence Item #{{ item.id }}</h1>
+
+<table>
+  <tr><td>Title</td><td>{{ item.title }}</td></tr>
+  <tr><td>Date & Time</td><td>{{ item.event_date.strftime('%A, %B %d, %Y — %I:%M %p') }}</td></tr>
+  <tr><td>Category</td><td>{{ item.category_info.get('label', item.category) }}{% for sub in item.subcategory_list %}, {{ categories.get(sub, {}).get('label', sub) }}{% endfor %}</td></tr>
+  <tr><td>Evidence Type</td><td>{{ item.type_info.get('label', item.evidence_type) }}</td></tr>
+  <tr><td>Severity</td><td>{{ item.severity }} / 5</td></tr>
+  <tr><td>People Present</td><td>{{ item.people_present or 'Not specified' }}</td></tr>
+  <tr><td>Child Present</td><td>{% if item.child_present %}<span class="child-flag">YES</span>{% else %}No{% endif %}</td></tr>
+  {% if item.file_path %}
+  <tr><td>Attached File</td><td>{{ item.file_path }}</td></tr>
+  {% endif %}
+</table>
+
+{% if item.description %}
+<div class="field" style="margin-top:12pt;">
+  <div class="field-label">Description / Context</div>
+  <div class="field-value">{{ item.description }}</div>
+</div>
+{% endif %}
+
+{% if item.quote_list %}
+<div class="field">
+  <div class="field-label">Key Quotes</div>
+  {% for q in item.quote_list %}
+  <div class="quote">"{{ q }}"</div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if item.raw_text %}
+<div class="field">
+  <div class="field-label">Full Text Content</div>
+  <div class="text-block">{{ item.raw_text }}</div>
+</div>
+{% endif %}
+
+{% if item.transcript %}
+<div class="field">
+  <div class="field-label">Audio Transcript</div>
+  <div class="text-block">{{ item.transcript }}</div>
+</div>
+{% endif %}
+
+<div style="margin-top:24pt; border-top:1px solid #ccc; padding-top:6pt; font-size:9pt; color:#666;">
+  Confidential — Prepared for legal proceedings. Generated {{ now.strftime('%m/%d/%Y') }}.
+</div>
+</body>
+</html>

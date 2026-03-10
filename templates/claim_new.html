@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}New Claim{% endblock %}
+{% block content %}
+<h1 style="margin-bottom:1.5rem;">Create Pattern Claim</h1>
+
+<form method="POST" class="card">
+  <div class="form-group">
+    <label for="title">Claim Title *</label>
+    <input type="text" id="title" name="title" required
+           placeholder="e.g. Pattern of withholding medical information (Jan-Mar 2025)">
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="category">Category</label>
+      <select id="category" name="category" required>
+        {% for key, cat in categories.items() %}
+        <option value="{{ key }}">{{ cat.icon }} {{ cat.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="strength">Claim Strength</label>
+      <select id="strength" name="strength">
+        <option value="developing">Developing (few items)</option>
+        <option value="moderate">Moderate (clear pattern)</option>
+        <option value="strong">Strong (overwhelming evidence)</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="date_range_start">Date Range Start</label>
+      <input type="datetime-local" id="date_range_start" name="date_range_start">
+    </div>
+    <div class="form-group">
+      <label for="date_range_end">Date Range End</label>
+      <input type="datetime-local" id="date_range_end" name="date_range_end">
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="summary">Claim Summary *</label>
+    <textarea id="summary" name="summary" rows="5" required
+              placeholder="Describe the pattern of behavior this claim demonstrates. Include:
+— What behavior is being claimed
+— How many incidents over what time period
+— Why this matters for the child's wellbeing"></textarea>
+  </div>
+
+  <div class="form-group">
+    <label>Select Supporting Evidence</label>
+    <p class="help-text" style="margin-bottom:0.75rem;">Check all evidence items that support this claim.</p>
+    {% if items %}
+    <div style="max-height:400px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius); padding:0.5rem;">
+      {% for item in items %}
+      <label style="display:flex; align-items:flex-start; gap:0.5rem; padding:0.5rem; border-bottom:1px solid var(--border); cursor:pointer; text-transform:none; font-weight:400; letter-spacing:0; font-size:0.85rem;">
+        <input type="checkbox" name="evidence_ids" value="{{ item.id }}" style="margin-top:0.2rem; width:auto;">
+        <div>
+          <span style="font-weight:500;">{{ item.title }}</span>
+          <span style="color:var(--text-dim); font-family:'JetBrains Mono', monospace; font-size:0.75rem; margin-left:0.5rem;">{{ item.event_date.strftime('%m/%d/%Y') }}</span>
+          <br>
+          <span class="badge" style="background:{{ item.category_info.get('color', '#666') }}; font-size:0.65rem;">{{ item.category_info.get('label', '') }}</span>
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--text-dim);">No evidence items yet. <a href="/intake">Add evidence first.</a></p>
+    {% endif %}
+  </div>
+
+  <button type="submit" class="btn btn-primary" style="margin-top:1rem;">Create Claim</button>
+</form>
+{% endblock %}

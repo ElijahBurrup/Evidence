@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1 style="margin-bottom:1.5rem;">Evidence Dashboard</h1>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-number">{{ total }}</div>
+    <div class="stat-label">Total Evidence Items</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number">{{ claims_count }}</div>
+    <div class="stat-label">Pattern Claims</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number">{{ by_type.get('audio', 0) + by_type.get('voicemail', 0) }}</div>
+    <div class="stat-label">Audio Recordings</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number">{{ by_type.get('text_message', 0) }}</div>
+    <div class="stat-label">Text Messages</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Evidence by Category</h2>
+  <div style="margin-top:1rem;">
+    {% for key, count in by_category.items() %}
+    {% set cat = categories[key] %}
+    <div class="category-bar">
+      <span class="category-bar-label">{{ cat.icon }} {{ cat.label }}</span>
+      <div style="flex:1; background:var(--bg); border-radius:4px; height:8px;">
+        <div class="category-bar-fill" style="background:{{ cat.color }}; width:{{ (count / (total or 1) * 100)|int }}%;"></div>
+      </div>
+      <span class="category-bar-count">{{ count }}</span>
+      <a href="/timeline?category={{ key }}" style="font-size:0.8rem;">View</a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% if recent %}
+<div class="card" style="margin-top:1rem;">
+  <h2>Recently Added</h2>
+  <div style="margin-top:0.75rem;">
+    {% for item in recent %}
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0; border-bottom:1px solid var(--border);">
+      <a href="/evidence/{{ item.id }}">{{ item.title }}</a>
+      <div style="display:flex; gap:0.5rem; align-items:center;">
+        <span class="badge" style="background:{{ item.category_info.get('color', '#666') }}; font-size:0.7rem;">{{ item.category_info.get('label', '') }}</span>
+        <span style="font-size:0.78rem; color:var(--text-dim); font-family:'JetBrains Mono', monospace;">{{ item.event_date.strftime('%m/%d/%Y') }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

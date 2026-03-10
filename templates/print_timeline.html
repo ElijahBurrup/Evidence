@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Evidence Timeline Report</title>
+<style>
+  body { font-family: 'Times New Roman', serif; font-size: 11pt; color: #000; margin: 1in; line-height: 1.5; }
+  h1 { font-size: 16pt; border-bottom: 2px solid #000; padding-bottom: 6pt; margin-bottom: 12pt; }
+  h2 { font-size: 12pt; margin-top: 18pt; margin-bottom: 6pt; color: #333; border-bottom: 1px solid #ccc; }
+  .meta { font-size: 9pt; color: #666; margin-bottom: 18pt; }
+  .item { border: 1px solid #ccc; padding: 10pt; margin-bottom: 10pt; page-break-inside: avoid; }
+  .item-date { font-size: 9pt; color: #666; font-family: 'Courier New', monospace; }
+  .item-title { font-weight: bold; font-size: 11pt; margin: 3pt 0; }
+  .item-category { font-size: 9pt; background: #eee; padding: 2pt 6pt; display: inline-block; }
+  .item-desc { font-size: 10pt; margin-top: 6pt; }
+  .quote { border-left: 3pt solid #333; padding-left: 8pt; font-style: italic; margin: 6pt 0; font-size: 10pt; }
+  .child-flag { color: #c00; font-weight: bold; font-size: 9pt; }
+  .severity { font-size: 9pt; }
+  .no-print { display: none; }
+  @media screen { body { max-width: 8in; margin: 1in auto; } .no-print { display: block; } }
+  @media print { .no-print { display: none; } }
+</style>
+</head>
+<body>
+<div class="no-print" style="margin-bottom:20pt; text-align:center;">
+  <button onclick="window.print()" style="padding:8pt 24pt; font-size:12pt; cursor:pointer;">Print This Report</button>
+  <a href="/timeline" style="margin-left:12pt;">Back to Timeline</a>
+</div>
+
+<h1>Evidence Timeline Report</h1>
+<div class="meta">
+  Generated: {{ now.strftime('%B %d, %Y at %I:%M %p') }}<br>
+  {% if category_filter %}
+  Filter: {{ categories.get(category_filter, {}).get('label', category_filter) }}<br>
+  {% endif %}
+  Total items: {{ items|length }}
+</div>
+
+{% set ns = namespace(last_month='') %}
+{% for item in items %}
+  {% set month_label = item.event_date.strftime('%B %Y') %}
+  {% if month_label != ns.last_month %}
+    <h2>{{ month_label }}</h2>
+    {% set ns.last_month = month_label %}
+  {% endif %}
+
+  <div class="item">
+    <div class="item-date">{{ item.event_date.strftime('%A, %B %d, %Y — %I:%M %p') }}</div>
+    <div class="item-title">{{ item.title }}</div>
+    <span class="item-category">{{ item.category_info.get('label', item.category) }}</span>
+    <span class="severity"> | Severity: {{ item.severity }}/5</span>
+    {% if item.child_present %}<span class="child-flag"> | CHILD PRESENT</span>{% endif %}
+    {% if item.description %}
+    <div class="item-desc">{{ item.description }}</div>
+    {% endif %}
+    {% for q in item.quote_list %}
+    <div class="quote">"{{ q }}"</div>
+    {% endfor %}
+  </div>
+{% endfor %}
+
+<div style="margin-top:24pt; border-top:1px solid #ccc; padding-top:6pt; font-size:9pt; color:#666;">
+  Confidential — Prepared for legal proceedings. Page generated {{ now.strftime('%m/%d/%Y') }}.
+</div>
+</body>
+</html>

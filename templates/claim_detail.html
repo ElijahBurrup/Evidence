@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Claim: {{ claim.title }}{% endblock %}
+{% block content %}
+<div class="detail-header">
+  <div>
+    <p style="color:var(--text-dim); font-size:0.85rem;">Claim #{{ claim.id }}</p>
+    <h1 style="font-size:1.5rem;">{{ claim.title }}</h1>
+    <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;">
+      {% set cat = categories.get(claim.category, {}) %}
+      <span class="badge" style="background:{{ cat.get('color', '#666') }};">{{ cat.get('label', claim.category) }}</span>
+      <span class="claim-strength strength-{{ claim.strength }}">{{ claim.strength }}</span>
+      <span style="font-size:0.85rem; color:var(--text-dim);">{{ evidence|length }} supporting items</span>
+    </div>
+  </div>
+  <div class="detail-actions">
+    <a href="/print/claim/{{ claim.id }}" class="btn btn-print btn-sm" target="_blank">🖨️ Print Claim Report</a>
+    <a href="/claims" class="btn btn-outline btn-sm">All Claims</a>
+  </div>
+</div>
+
+{% if claim.summary %}
+<div class="card">
+  <h3>Claim Summary</h3>
+  <p style="margin-top:0.5rem; line-height:1.8;">{{ claim.summary }}</p>
+</div>
+{% endif %}
+
+<h2 style="margin-top:2rem; margin-bottom:1rem;">Supporting Evidence ({{ evidence|length }} items)</h2>
+
+<div class="timeline">
+  {% for item in evidence %}
+  <div class="tl-item">
+    <div class="tl-dot" style="background:{{ item.category_info.get('color', '#666') }};"></div>
+    <div class="tl-date">{{ item.event_date.strftime('%a, %b %d %Y — %I:%M %p') }}</div>
+    <a href="/evidence/{{ item.id }}" class="tl-title" style="color:var(--text);">{{ item.title }}</a>
+    <div class="tl-meta">
+      <span>{{ item.type_info.get('icon', '') }} {{ item.type_info.get('label', '') }}</span>
+      <span class="badge severity-{{ item.severity }}">Sev {{ item.severity }}</span>
+      {% if item.child_present %}
+      <span class="child-present-flag">Child Present</span>
+      {% endif %}
+    </div>
+    {% if item.description %}
+    <p style="margin-top:0.5rem; font-size:0.85rem; color:var(--text-dim);">{{ item.description[:200] }}</p>
+    {% endif %}
+    {% for quote in item.quote_list %}
+    <div class="tl-quote">"{{ quote }}"</div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

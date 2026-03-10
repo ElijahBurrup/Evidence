@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Add Evidence{% endblock %}
+{% block content %}
+<h1 style="margin-bottom:1.5rem;">Add Evidence</h1>
+
+<form method="POST" action="/intake/submit" enctype="multipart/form-data" class="card">
+
+  <div class="form-group">
+    <label for="title">Title / Short Description *</label>
+    <input type="text" id="title" name="title" required
+           placeholder="e.g. Voicemail from Melissa yelling about pickup time">
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="event_date">Date & Time of Event *</label>
+      <input type="datetime-local" id="event_date" name="event_date" required>
+    </div>
+    <div class="form-group">
+      <label for="severity">Severity (1=Low, 5=Critical)</label>
+      <select id="severity" name="severity">
+        <option value="1">1 — Minor / Background</option>
+        <option value="2">2 — Noteworthy</option>
+        <option value="3" selected>3 — Significant</option>
+        <option value="4">4 — Serious</option>
+        <option value="5">5 — Critical / Safety Concern</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="evidence_type">Evidence Type *</label>
+      <select id="evidence_type" name="evidence_type" required>
+        {% for key, t in evidence_types.items() %}
+        <option value="{{ key }}">{{ t.icon }} {{ t.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="category">Primary Category *</label>
+      <select id="category" name="category" required>
+        {% for key, cat in categories.items() %}
+        <option value="{{ key }}">{{ cat.icon }} {{ cat.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>Additional Categories (check all that apply)</label>
+    <div class="subcategory-grid">
+      {% for key, cat in categories.items() %}
+      <label>
+        <input type="checkbox" name="subcategories" value="{{ key }}">
+        {{ cat.icon }} {{ cat.label }}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="description">Description / Context</label>
+    <textarea id="description" name="description" rows="4"
+              placeholder="What happened? What led up to this? What was the outcome?"></textarea>
+  </div>
+
+  <div class="form-group">
+    <label for="raw_text">Raw Text Content</label>
+    <textarea id="raw_text" name="raw_text" rows="6"
+              placeholder="Paste the full text message thread, email body, or journal entry here.
+For text threads, include timestamps and who said what."></textarea>
+    <p class="help-text">For text messages, paste the full thread. For journal entries, write your account of events.</p>
+  </div>
+
+  <div class="form-group">
+    <label for="key_quotes">Key Quotes (one per line)</label>
+    <textarea id="key_quotes" name="key_quotes" rows="4"
+              placeholder="Put the most damning or relevant quotes here, one per line.
+These will be highlighted in the timeline and reports."></textarea>
+    <p class="help-text">The exact words that matter most. These appear in timeline view and printable reports.</p>
+  </div>
+
+  <div class="form-group">
+    <label for="file">Attach File (audio, screenshot, document)</label>
+    <input type="file" id="file" name="file" style="background:var(--bg); padding:0.6rem;">
+    <p class="help-text">Audio files will be transcribed automatically after upload. Max 500MB.</p>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="people_present">People Present</label>
+      <input type="text" id="people_present" name="people_present"
+             placeholder="e.g. Melissa, the children, my mother">
+    </div>
+    <div class="form-group">
+      <label for="tags">Tags (comma separated)</label>
+      <input type="text" id="tags" name="tags"
+             placeholder="e.g. pickup, custody exchange, phone call">
+    </div>
+  </div>
+
+  <div class="form-group">
+    <div class="checkbox-group">
+      <input type="checkbox" id="child_present" name="child_present">
+      <label for="child_present" style="color:var(--danger); font-weight:600;">Child was present during this incident</label>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="notes">Private Notes (for attorney, not displayed in reports)</label>
+    <textarea id="notes" name="notes" rows="3"
+              placeholder="Any notes for your attorney or for your own reference."></textarea>
+  </div>
+
+  <button type="submit" class="btn btn-primary" style="margin-top:1rem;">Save Evidence</button>
+</form>
+{% endblock %}

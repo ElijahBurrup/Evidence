@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Evidence{% endblock %} — Evidence Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+{% block head %}{% endblock %}
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-brand">Evidence Platform</a>
+    <div class="nav-links">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/intake">Add Evidence</a>
+      <a href="/timeline">Timeline</a>
+      <a href="/claims">Claims</a>
+      <a href="/search">Search</a>
+    </div>
+  </div>
+</nav>
+
+<main class="main">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  {% for cat, msg in messages %}
+  <div class="flash flash-{{ cat }}">{{ msg }}</div>
+  {% endfor %}
+  {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="footer no-print">
+  <p>Confidential — Prepared for legal proceedings</p>
+</footer>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

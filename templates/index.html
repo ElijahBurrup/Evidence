@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<div class="hero">
+  <h1>Evidence Platform</h1>
+  <p>Organize, search, and present evidence with interactive timelines and printable reports.</p>
+  <div style="display:flex; gap:1rem; justify-content:center; flex-wrap:wrap;">
+    <a href="/intake" class="btn btn-primary">Add Evidence</a>
+    <a href="/timeline" class="btn btn-outline">View Timeline</a>
+    <a href="/dashboard" class="btn btn-outline">Dashboard</a>
+  </div>
+</div>
+
+<div class="home-grid">
+  <a href="/intake" class="home-card">
+    <div class="home-card-icon">📥</div>
+    <h3>Evidence Intake</h3>
+    <p>Upload audio, screenshots, texts, journal entries. Categorize and tag each piece.</p>
+  </a>
+  <a href="/timeline" class="home-card">
+    <div class="home-card-icon">📅</div>
+    <h3>Interactive Timeline</h3>
+    <p>See all evidence on a chronological timeline. Filter by category, type, or severity.</p>
+  </a>
+  <a href="/claims" class="home-card">
+    <div class="home-card-icon">📋</div>
+    <h3>Pattern Claims</h3>
+    <p>Group evidence into pattern-of-behavior claims. Each claim links to its supporting evidence.</p>
+  </a>
+  <a href="/search" class="home-card">
+    <div class="home-card-icon">🔍</div>
+    <h3>Full-Text Search</h3>
+    <p>Search across all evidence: transcripts, texts, quotes, notes, and descriptions.</p>
+  </a>
+  <a href="/dashboard" class="home-card">
+    <div class="home-card-icon">📊</div>
+    <h3>Dashboard</h3>
+    <p>See evidence counts by category and type at a glance.</p>
+  </a>
+  <a href="/print/timeline" class="home-card">
+    <div class="home-card-icon">🖨️</div>
+    <h3>Print Reports</h3>
+    <p>Print any timeline, claim, or individual evidence item in court-ready format.</p>
+  </a>
+</div>
+
+<h2 style="margin-top:3rem; margin-bottom:0.5rem;">Evidence Categories Guide</h2>
+<p style="color:var(--text-dim); margin-bottom:1rem; font-size:0.9rem;">
+  Each piece of evidence gets a primary category plus optional subcategories. Here is what to look for:
+</p>
+<div class="category-guide">
+  {% for key, cat in categories.items() %}
+  <div class="cat-guide-card" style="border-left: 3px solid {{ cat.color }};">
+    <div class="cat-guide-header">
+      <span class="icon">{{ cat.icon }}</span>
+      <h4>{{ cat.label }}</h4>
+    </div>
+    <p class="cat-guide-desc">{{ cat.description }}</p>
+    <ul class="cat-guide-examples">
+      {% for ex in cat.examples %}
+      <li>{{ ex }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

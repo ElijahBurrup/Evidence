@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Timeline{% endblock %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+  <h1>Evidence Timeline</h1>
+  <div style="display:flex; gap:0.5rem;">
+    <a href="/print/timeline{% if category_filter %}?category={{ category_filter }}{% endif %}" class="btn btn-print btn-sm" target="_blank">🖨️ Print Timeline</a>
+    <a href="/intake" class="btn btn-primary btn-sm">+ Add Evidence</a>
+  </div>
+</div>
+
+<form class="timeline-controls" method="GET" action="/timeline">
+  <select name="category">
+    <option value="">All Categories</option>
+    {% for key, cat in categories.items() %}
+    <option value="{{ key }}" {% if category_filter == key %}selected{% endif %}>{{ cat.icon }} {{ cat.label }}</option>
+    {% endfor %}
+  </select>
+  <select name="type">
+    <option value="">All Types</option>
+    {% for key, t in evidence_types.items() %}
+    <option value="{{ key }}" {% if type_filter == key %}selected{% endif %}>{{ t.icon }} {{ t.label }}</option>
+    {% endfor %}
+  </select>
+  <select name="severity_min">
+    <option value="">Any Severity</option>
+    <option value="3" {% if severity_min == 3 %}selected{% endif %}>3+ Significant</option>
+    <option value="4" {% if severity_min == 4 %}selected{% endif %}>4+ Serious</option>
+    <option value="5" {% if severity_min == 5 %}selected{% endif %}>5 Critical Only</option>
+  </select>
+  <input type="text" name="q" value="{{ search }}" placeholder="Search keywords..." style="min-width:200px;">
+  <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+  <a href="/timeline" class="btn btn-outline btn-sm">Clear</a>
+</form>
+
+<p style="color:var(--text-dim); font-size:0.85rem; margin-bottom:1.5rem;">
+  Showing {{ items|length }} evidence item{{ 's' if items|length != 1 }} — oldest first
+</p>
+
+{% if items %}
+<div class="timeline">
+  {% set ns = namespace(last_month='') %}
+  {% for item in items %}
+    {% set month_label = item.event_date.strftime('%B %Y') %}
+    {% if month_label != ns.last_month %}
+      <div style="margin-bottom:1rem; margin-left:-1.5rem; font-weight:700; font-size:0.85rem; color:var(--accent); text-transform:uppercase; letter-spacing:1px;">
+        {{ month_label }}
+      </div>
+      {% set ns.last_month = month_label %}
+    {% endif %}
+
+    <div class="tl-item">
+      <div class="tl-dot" style="background:{{ item.category_info.get('color', '#666') }};"></div>
+      <div class="tl-date">{{ item.event_date.strftime('%a, %b %d %Y — %I:%M %p') }}</div>
+      <a href="/evidence/{{ item.id }}" class="tl-title" style="color:var(--text);">{{ item.title }}</a>
+      <div class="tl-meta">
+        <span class="badge" style="background:{{ item.category_info.get('color', '#666') }};">{{ item.category_info.get('label', item.category) }}</span>
+        <span style="color:var(--text-dim);">{{ item.type_info.get('icon', '') }} {{ item.type_info.get('label', item.evidence_type) }}</span>
+        <span class="badge severity-{{ item.severity }}">Sev {{ item.severity }}</span>
+        {% if item.child_present %}
+        <span class="child-present-flag">Child Present</span>
+        {% endif %}
+      </div>
+      {% if item.description %}
+      <p style="margin-top:0.5rem; font-size:0.85rem; color:var(--text-dim);">{{ item.description[:200] }}{% if item.description|length > 200 %}...{% endif %}</p>
+      {% endif %}
+      {% for quote in item.quote_list[:2] %}
+      <div class="tl-quote">"{{ quote }}"</div>
+      {% endfor %}
+    </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center; padding:3rem;">
+  <p style="font-size:1.2rem; margin-bottom:1rem;">No evidence yet.</p>
+  <a href="/intake" class="btn btn-primary">Add Your First Piece of Evidence</a>
+</div>
+{% endif %}
+{% endblock %}

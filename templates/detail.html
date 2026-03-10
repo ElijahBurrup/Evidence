@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Evidence #{{ item.id }}{% endblock %}
+{% block content %}
+<div class="detail-header">
+  <div>
+    <p style="color:var(--text-dim); font-size:0.85rem;">Evidence #{{ item.id }}</p>
+    <h1 style="font-size:1.5rem;">{{ item.title }}</h1>
+  </div>
+  <div class="detail-actions">
+    <a href="/evidence/{{ item.id }}/edit" class="btn btn-outline btn-sm">Edit</a>
+    <a href="/print/evidence/{{ item.id }}" class="btn btn-print btn-sm" target="_blank">🖨️ Print</a>
+    {% if item.file_path and item.evidence_type in ('audio', 'voicemail') and not item.transcript %}
+    <form method="POST" action="/transcribe/{{ item.id }}" style="display:inline;">
+      <button type="submit" class="btn btn-primary btn-sm">Transcribe Audio</button>
+    </form>
+    {% endif %}
+    <a href="/timeline" class="btn btn-outline btn-sm">Back to Timeline</a>
+  </div>
+</div>
+
+<div class="detail-grid">
+  <div class="detail-field">
+    <label>Date & Time</label>
+    <div class="value" style="font-family:'JetBrains Mono', monospace;">{{ item.event_date.strftime('%A, %B %d, %Y — %I:%M %p') }}</div>
+  </div>
+  <div class="detail-field">
+    <label>Category</label>
+    <div class="value">
+      <span class="badge" style="background:{{ item.category_info.get('color', '#666') }};">{{ item.category_info.get('icon', '') }} {{ item.category_info.get('label', item.category) }}</span>
+      {% for sub in item.subcategory_list %}
+        {% set sub_info = categories.get(sub, {}) %}
+        <span class="badge" style="background:{{ sub_info.get('color', '#666') }}; opacity:0.8; margin-left:0.25rem;">{{ sub_info.get('label', sub) }}</span>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="detail-field">
+    <label>Evidence Type</label>
+    <div class="value">{{ item.type_info.get('icon', '') }} {{ item.type_info.get('label', item.evidence_type) }}</div>
+  </div>
+  <div class="detail-field">
+    <label>Severity</label>
+    <div class="value"><span class="badge severity-{{ item.severity }}">{{ item.severity }} / 5</span></div>
+  </div>
+  <div class="detail-field">
+    <label>People Present</label>
+    <div class="value">{{ item.people_present or '—' }}</div>
+  </div>
+  <div class="detail-field">
+    <label>Child Present</label>
+    <div class="value">
+      {% if item.child_present %}
+      <span class="child-present-flag">Yes — Child was present</span>
+      {% else %}
+      No
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if item.description %}
+<div class="card">
+  <h3>Description / Context</h3>
+  <p style="margin-top:0.5rem; line-height:1.8;">{{ item.description }}</p>
+</div>
+{% endif %}
+
+{% if item.quote_list %}
+<div class="card">
+  <h3>Key Quotes</h3>
+  <ul class="quotes-list" style="margin-top:0.5rem;">
+    {% for q in item.quote_list %}
+    <li>"{{ q }}"</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if item.raw_text %}
+<div class="card">
+  <h3>Raw Text / Content</h3>
+  <div class="text-box" style="margin-top:0.5rem;">{{ item.raw_text }}</div>
+</div>
+{% endif %}
+
+{% if item.transcript %}
+<div class="card">
+  <h3>Audio Transcript</h3>
+  <div class="transcript-box" style="margin-top:0.5rem;">{{ item.transcript }}</div>
+</div>
+{% endif %}
+
+{% if item.file_path %}
+<div class="card">
+  <h3>Attached File</h3>
+  <p style="margin-top:0.5rem; font-family:'JetBrains Mono', monospace; font-size:0.85rem;">{{ item.file_path }}</p>
+  {% if item.evidence_type in ('audio', 'voicemail') %}
+  <audio controls style="margin-top:0.75rem; width:100%;">
+    <source src="/{{ item.file_path }}">
+  </audio>
+  {% elif item.evidence_type == 'screenshot' %}
+  <img src="/{{ item.file_path }}" style="margin-top:0.75rem; max-width:100%; border-radius:var(--radius);">
+  {% elif item.evidence_type == 'video' %}
+  <video controls style="margin-top:0.75rem; max-width:100%;">
+    <source src="/{{ item.file_path }}">
+  </video>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if item.tag_list %}
+<div style="margin-top:1rem;">
+  <label>Tags</label>
+  <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.35rem;">
+    {% for tag in item.tag_list %}
+    <a href="/timeline?q={{ tag }}" class="evidence-chip">{{ tag }}</a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if item.notes %}
+<div class="card" style="border-color:var(--warning); margin-top:1rem;">
+  <h3 style="color:var(--warning);">Private Notes (Attorney Only)</h3>
+  <p style="margin-top:0.5rem;">{{ item.notes }}</p>
+</div>
+{% endif %}
+{% endblock %}

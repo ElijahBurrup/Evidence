@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Claim Report: {{ claim.title }}</title>
+<style>
+  body { font-family: 'Times New Roman', serif; font-size: 11pt; color: #000; margin: 1in; line-height: 1.5; }
+  h1 { font-size: 16pt; border-bottom: 2px solid #000; padding-bottom: 6pt; margin-bottom: 6pt; }
+  h2 { font-size: 13pt; margin-top: 18pt; margin-bottom: 6pt; }
+  .meta { font-size: 9pt; color: #666; margin-bottom: 12pt; }
+  .summary { font-size: 11pt; margin-bottom: 18pt; padding: 10pt; background: #f5f5f5; border: 1px solid #ddd; }
+  .item { border: 1px solid #ccc; padding: 10pt; margin-bottom: 10pt; page-break-inside: avoid; }
+  .item-date { font-size: 9pt; color: #666; font-family: 'Courier New', monospace; }
+  .item-title { font-weight: bold; margin: 3pt 0; }
+  .item-type { font-size: 9pt; color: #666; }
+  .quote { border-left: 3pt solid #333; padding-left: 8pt; font-style: italic; margin: 6pt 0; font-size: 10pt; }
+  .child-flag { color: #c00; font-weight: bold; font-size: 9pt; }
+  .no-print { display: none; }
+  @media screen { body { max-width: 8in; margin: 1in auto; } .no-print { display: block; } }
+  @media print { .no-print { display: none; } }
+</style>
+</head>
+<body>
+<div class="no-print" style="margin-bottom:20pt; text-align:center;">
+  <button onclick="window.print()" style="padding:8pt 24pt; font-size:12pt; cursor:pointer;">Print This Report</button>
+  <a href="/claims/{{ claim.id }}" style="margin-left:12pt;">Back to Claim</a>
+</div>
+
+<h1>Pattern-of-Behavior Claim</h1>
+<div class="meta">
+  Category: {{ categories.get(claim.category, {}).get('label', claim.category) }} |
+  Strength: {{ claim.strength | upper }} |
+  Supporting Evidence: {{ evidence|length }} items |
+  Generated: {{ now.strftime('%B %d, %Y') }}
+</div>
+
+<h2>{{ claim.title }}</h2>
+
+{% if claim.summary %}
+<div class="summary">{{ claim.summary }}</div>
+{% endif %}
+
+<h2>Supporting Evidence (Chronological)</h2>
+
+{% for item in evidence %}
+<div class="item">
+  <div class="item-date">{{ item.event_date.strftime('%A, %B %d, %Y — %I:%M %p') }}</div>
+  <div class="item-title">Evidence #{{ item.id }}: {{ item.title }}</div>
+  <div class="item-type">Type: {{ item.type_info.get('label', item.evidence_type) }} | Severity: {{ item.severity }}/5
+    {% if item.child_present %}<span class="child-flag"> | CHILD PRESENT</span>{% endif %}
+  </div>
+  {% if item.description %}
+  <p>{{ item.description }}</p>
+  {% endif %}
+  {% for q in item.quote_list %}
+  <div class="quote">"{{ q }}"</div>
+  {% endfor %}
+  {% if item.raw_text %}
+  <p style="font-size:9pt; margin-top:6pt;"><em>Full text content available in evidence file #{{ item.id }}.</em></p>
+  {% endif %}
+</div>
+{% endfor %}
+
+<div style="margin-top:24pt; border-top:1px solid #ccc; padding-top:6pt; font-size:9pt; color:#666;">
+  Confidential — Prepared for legal proceedings. Page generated {{ now.strftime('%m/%d/%Y') }}.
+</div>
+</body>
+</html>

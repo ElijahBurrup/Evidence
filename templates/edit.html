@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Edit Evidence #{{ item.id }}{% endblock %}
+{% block content %}
+<h1 style="margin-bottom:1.5rem;">Edit Evidence #{{ item.id }}</h1>
+
+<form method="POST" class="card">
+  <div class="form-group">
+    <label for="title">Title</label>
+    <input type="text" id="title" name="title" value="{{ item.title }}" required>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="event_date">Date & Time</label>
+      <input type="datetime-local" id="event_date" name="event_date" value="{{ item.event_date.strftime('%Y-%m-%dT%H:%M') }}" required>
+    </div>
+    <div class="form-group">
+      <label for="severity">Severity</label>
+      <select id="severity" name="severity">
+        {% for i in range(1, 6) %}
+        <option value="{{ i }}" {% if item.severity == i %}selected{% endif %}>{{ i }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="evidence_type">Evidence Type</label>
+      <select id="evidence_type" name="evidence_type">
+        {% for key, t in evidence_types.items() %}
+        <option value="{{ key }}" {% if item.evidence_type == key %}selected{% endif %}>{{ t.icon }} {{ t.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="category">Primary Category</label>
+      <select id="category" name="category">
+        {% for key, cat in categories.items() %}
+        <option value="{{ key }}" {% if item.category == key %}selected{% endif %}>{{ cat.icon }} {{ cat.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>Additional Categories</label>
+    <div class="subcategory-grid">
+      {% for key, cat in categories.items() %}
+      <label>
+        <input type="checkbox" name="subcategories" value="{{ key }}" {% if key in item.subcategory_list %}checked{% endif %}>
+        {{ cat.icon }} {{ cat.label }}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="description">Description</label>
+    <textarea id="description" name="description" rows="4">{{ item.description or '' }}</textarea>
+  </div>
+
+  <div class="form-group">
+    <label for="raw_text">Raw Text Content</label>
+    <textarea id="raw_text" name="raw_text" rows="6">{{ item.raw_text or '' }}</textarea>
+  </div>
+
+  <div class="form-group">
+    <label for="transcript">Transcript</label>
+    <textarea id="transcript" name="transcript" rows="6">{{ item.transcript or '' }}</textarea>
+    <p class="help-text">You can paste or edit the transcript manually here.</p>
+  </div>
+
+  <div class="form-group">
+    <label for="key_quotes">Key Quotes (one per line)</label>
+    <textarea id="key_quotes" name="key_quotes" rows="4">{{ item.quote_list | join('\n') }}</textarea>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="people_present">People Present</label>
+      <input type="text" id="people_present" name="people_present" value="{{ item.people_present or '' }}">
+    </div>
+    <div class="form-group">
+      <label for="tags">Tags</label>
+      <input type="text" id="tags" name="tags" value="{{ item.tag_list | join(', ') }}">
+    </div>
+  </div>
+
+  <div class="form-group">
+    <div class="checkbox-group">
+      <input type="checkbox" id="child_present" name="child_present" {% if item.child_present %}checked{% endif %}>
+      <label for="child_present" style="color:var(--danger);">Child was present</label>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="notes">Private Notes</label>
+    <textarea id="notes" name="notes" rows="3">{{ item.notes or '' }}</textarea>
+  </div>
+
+  <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+    <a href="/evidence/{{ item.id }}" class="btn btn-outline">Cancel</a>
+  </div>
+</form>
+{% endblock %}

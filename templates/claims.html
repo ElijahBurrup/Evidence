@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Claims{% endblock %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+  <h1>Pattern-of-Behavior Claims</h1>
+  <a href="/claims/new" class="btn btn-primary btn-sm">+ New Claim</a>
+</div>
+
+<p style="color:var(--text-dim); margin-bottom:1.5rem; font-size:0.9rem;">
+  A claim groups multiple evidence items into a provable pattern. Click any claim to see its full evidence chain.
+</p>
+
+{% if claims %}
+{% for claim in claims %}
+<div class="claim-card">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+    <div>
+      <a href="/claims/{{ claim.id }}" style="font-weight:600; font-size:1.1rem; color:var(--text);">{{ claim.title }}</a>
+      <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.35rem;">
+        {% set cat = categories.get(claim.category, {}) %}
+        <span class="badge" style="background:{{ cat.get('color', '#666') }};">{{ cat.get('label', claim.category) }}</span>
+        <span class="claim-strength strength-{{ claim.strength }}">{{ claim.strength }}</span>
+        <span style="font-size:0.8rem; color:var(--text-dim);">{{ claim.evidence_id_list|length }} evidence items</span>
+      </div>
+    </div>
+    <a href="/print/claim/{{ claim.id }}" class="btn btn-print btn-sm" target="_blank">🖨️ Print</a>
+  </div>
+  {% if claim.summary %}
+  <p style="margin-top:0.75rem; font-size:0.9rem; color:var(--text-dim);">{{ claim.summary[:300] }}{% if claim.summary|length > 300 %}...{% endif %}</p>
+  {% endif %}
+</div>
+{% endfor %}
+{% else %}
+<div class="card" style="text-align:center; padding:3rem;">
+  <p style="margin-bottom:1rem;">No claims yet. Add evidence first, then group it into claims.</p>
+  <a href="/claims/new" class="btn btn-primary">Create First Claim</a>
+</div>
+{% endif %}
+{% endblock %}
