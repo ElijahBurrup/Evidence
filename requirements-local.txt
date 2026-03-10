@@ -1,0 +1,4 @@
+# Local-only dependencies (transcription, AI analysis)
+-r requirements.txt
+faster-whisper==1.1.0
+anthropic

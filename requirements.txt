@@ -1,5 +1,4 @@
 flask==3.1.0
 flask-sqlalchemy==3.1.1
-faster-whisper==1.1.0
 python-dotenv==1.0.1
 gunicorn==23.0.0
