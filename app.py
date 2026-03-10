@@ -305,7 +305,30 @@ def create_app():
             "categories": EVIDENCE_CATEGORIES,
             "evidence_types": EVIDENCE_TYPES,
             "now": datetime.utcnow(),
+            "prefix": url_prefix,
         }
+
+    # Rewrite hardcoded URLs in HTML responses when behind a prefix
+    if url_prefix:
+        import re as _re
+        _prefix_pat = _re.compile(
+            r'((?:href|action|src)=["\'])/'
+        )
+        _double_pat = _re.compile(
+            r'((?:href|action|src)=["\'])' + _re.escape(url_prefix) + _re.escape(url_prefix)
+        )
+        @app.after_request
+        def rewrite_urls(response):
+            if response.content_type and "text/html" in response.content_type:
+                content = response.get_data(as_text=True)
+                # Prefix all absolute paths
+                content = _prefix_pat.sub(rf'\g<1>{url_prefix}/', content)
+                # Fix any double-prefixed URLs (from url_for + rewrite)
+                content = _double_pat.sub(rf'\g<1>{url_prefix}', content)
+                # Don't prefix external URLs (https://)
+                content = content.replace(f'{url_prefix}//', '//')
+                response.set_data(content)
+            return response
 
     # -- Routes --
 
