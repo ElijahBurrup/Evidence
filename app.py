@@ -279,11 +279,17 @@ def create_app():
     # URL prefix for reverse proxy (e.g. kingdombuilders.ai/evidence)
     url_prefix = os.environ.get("URL_PREFIX", "")
     if url_prefix:
-        app.config["APPLICATION_ROOT"] = url_prefix
-        from werkzeug.middleware.dispatcher import DispatcherMiddleware
-        app.wsgi_app = DispatcherMiddleware(
-            Flask(__name__), {url_prefix: app}
-        )
+        class PrefixMiddleware:
+            def __init__(self, wsgi_app, prefix):
+                self.app = wsgi_app
+                self.prefix = prefix
+            def __call__(self, environ, start_response):
+                path = environ.get("PATH_INFO", "")
+                if path.startswith(self.prefix):
+                    environ["PATH_INFO"] = path[len(self.prefix):] or "/"
+                    environ["SCRIPT_NAME"] = self.prefix
+                return self.app(environ, start_response)
+        app.wsgi_app = PrefixMiddleware(app.wsgi_app, url_prefix)
 
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
