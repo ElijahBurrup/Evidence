@@ -535,22 +535,84 @@ def create_app():
 
     @app.route("/search")
     def search():
+        import re as _search_re
         q = request.args.get("q", "").strip()
+        category_filter = request.args.get("category")
+        type_filter = request.args.get("type")
+        severity_min = request.args.get("severity_min", type=int)
         results = []
+        exact = False
+        search_term = q
+
         if q:
-            like = f"%{q}%"
-            results = EvidenceItem.query.filter(
-                db.or_(
-                    EvidenceItem.title.ilike(like),
-                    EvidenceItem.description.ilike(like),
-                    EvidenceItem.raw_text.ilike(like),
-                    EvidenceItem.transcript.ilike(like),
-                    EvidenceItem.key_quotes.ilike(like),
-                    EvidenceItem.notes.ilike(like),
-                    EvidenceItem.tags.ilike(like),
-                )
-            ).order_by(EvidenceItem.event_date.asc()).all()
-        return render_template("search.html", q=q, results=results)
+            # Detect double-quoted exact search
+            match = _search_re.match(r'^"(.+)"$', q)
+            if match:
+                exact = True
+                search_term = match.group(1)
+
+            # Search all text fields on every item
+            searchable_fields = ["title", "description", "raw_text", "transcript",
+                                 "key_quotes", "notes", "tags", "people_present"]
+
+            query = EvidenceItem.query
+            if category_filter:
+                query = query.filter(EvidenceItem.category == category_filter)
+            if type_filter:
+                query = query.filter(EvidenceItem.evidence_type == type_filter)
+            if severity_min:
+                query = query.filter(EvidenceItem.severity >= severity_min)
+
+            all_items = query.order_by(EvidenceItem.event_date.asc()).all()
+
+            for item in all_items:
+                matched_fields = []
+                matched_snippets = []
+                for field_name in searchable_fields:
+                    value = getattr(item, field_name, None)
+                    if not value:
+                        continue
+                    if exact:
+                        # Case-insensitive exact phrase match
+                        if search_term.lower() in value.lower():
+                            matched_fields.append(field_name)
+                            # Extract snippet around match
+                            idx = value.lower().index(search_term.lower())
+                            start = max(0, idx - 80)
+                            end = min(len(value), idx + len(search_term) + 80)
+                            snippet = value[start:end]
+                            if start > 0:
+                                snippet = "..." + snippet
+                            if end < len(value):
+                                snippet = snippet + "..."
+                            matched_snippets.append((field_name, snippet))
+                    else:
+                        # Substring: all words must appear (AND logic)
+                        words = search_term.lower().split()
+                        val_lower = value.lower()
+                        if all(w in val_lower for w in words):
+                            matched_fields.append(field_name)
+                            # Find first word occurrence for snippet
+                            idx = val_lower.index(words[0])
+                            start = max(0, idx - 80)
+                            end = min(len(value), idx + len(words[0]) + 120)
+                            snippet = value[start:end]
+                            if start > 0:
+                                snippet = "..." + snippet
+                            if end < len(value):
+                                snippet = snippet + "..."
+                            matched_snippets.append((field_name, snippet))
+
+                if matched_fields:
+                    results.append({
+                        "item": item,
+                        "matched_fields": matched_fields,
+                        "snippets": matched_snippets,
+                    })
+
+        return render_template("search.html", q=q, results=results, exact=exact,
+                               search_term=search_term, category_filter=category_filter,
+                               type_filter=type_filter, severity_min=severity_min)
 
     @app.route("/print/timeline")
     def print_timeline():

@@ -1,33 +1,102 @@
 {% extends "base.html" %}
 {% block title %}Search{% endblock %}
 {% block content %}
-<h1 style="margin-bottom:1.5rem;">Search Evidence</h1>
+<h1 style="margin-bottom:0.5rem;">Search Evidence</h1>
+<p style="color:var(--text-dim); margin-bottom:1.5rem; font-size:0.85rem;">
+  Use <code>"double quotes"</code> for exact phrase matching. Without quotes, all words must appear (substring match).
+</p>
 
-<form method="GET" class="search-bar">
-  <input type="text" name="q" value="{{ q }}" placeholder="Search transcripts, texts, quotes, descriptions, tags..." autofocus>
+<form method="GET" class="search-bar" style="flex-wrap:wrap;">
+  <input type="text" name="q" value="{{ q }}" placeholder='Search transcripts, texts, quotes... or "exact phrase"' autofocus>
   <button type="submit" class="btn btn-primary">Search</button>
 </form>
 
+<form method="GET" class="search-filters" style="display:flex; flex-wrap:wrap; gap:0.75rem; align-items:center; margin-bottom:2rem; padding:1rem; background:var(--surface); border-radius:var(--radius); border:1px solid var(--border);">
+  <input type="hidden" name="q" value="{{ q }}">
+  <div>
+    <label style="font-size:0.7rem; margin-bottom:0.2rem;">Category</label>
+    <select name="category" style="width:auto; min-width:160px;">
+      <option value="">All Categories</option>
+      {% for key, cat in categories.items() %}
+      <option value="{{ key }}" {{ 'selected' if category_filter == key }}>{{ cat.icon }} {{ cat.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label style="font-size:0.7rem; margin-bottom:0.2rem;">Type</label>
+    <select name="type" style="width:auto; min-width:160px;">
+      <option value="">All Types</option>
+      {% for key, et in evidence_types.items() %}
+      <option value="{{ key }}" {{ 'selected' if type_filter == key }}>{{ et.icon }} {{ et.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label style="font-size:0.7rem; margin-bottom:0.2rem;">Min Severity</label>
+    <select name="severity_min" style="width:auto; min-width:80px;">
+      <option value="">Any</option>
+      {% for s in [1,2,3,4,5] %}
+      <option value="{{ s }}" {{ 'selected' if severity_min == s }}>{{ s }}+</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div style="align-self:flex-end;">
+    <button type="submit" class="btn btn-outline btn-sm">Filter</button>
+  </div>
+</form>
+
 {% if q %}
-<p style="color:var(--text-dim); margin-bottom:1rem; font-size:0.85rem;">
-  {{ results|length }} result{{ 's' if results|length != 1 }} for "{{ q }}"
-</p>
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+  <p style="color:var(--text-dim); font-size:0.85rem;">
+    {{ results|length }} result{{ 's' if results|length != 1 }} for
+    {% if exact %}
+    <span style="color:var(--warning);">exact match</span> "{{ search_term }}"
+    {% else %}
+    "{{ search_term }}"
+    {% endif %}
+  </p>
+  {% if results %}
+  <span style="font-size:0.78rem; color:var(--text-dim);">
+    Mode: {{ "Exact phrase" if exact else "Substring (all words)" }}
+  </span>
+  {% endif %}
+</div>
 
 {% if results %}
 <div class="card">
-  {% for item in results %}
+  {% for r in results %}
+  {% set item = r.item %}
   <div class="search-result">
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
       <a href="/evidence/{{ item.id }}" style="font-weight:600;">{{ item.title }}</a>
       <span class="search-result-date">{{ item.event_date.strftime('%m/%d/%Y %I:%M %p') }}</span>
     </div>
-    <div style="display:flex; gap:0.5rem; margin-top:0.25rem;">
+    <div style="display:flex; gap:0.5rem; margin-top:0.25rem; flex-wrap:wrap; align-items:center;">
       <span class="badge" style="background:{{ item.category_info.get('color', '#666') }}; font-size:0.7rem;">{{ item.category_info.get('label', '') }}</span>
       <span style="font-size:0.78rem; color:var(--text-dim);">{{ item.type_info.get('icon', '') }} {{ item.type_info.get('label', '') }}</span>
+      <span class="badge severity-{{ item.severity }}" style="font-size:0.65rem;">Sev {{ item.severity }}</span>
+      {% if item.child_present %}
+      <span class="child-present-flag">Child Present</span>
+      {% endif %}
     </div>
-    {% if item.description %}
-    <p style="font-size:0.85rem; color:var(--text-dim); margin-top:0.35rem;">{{ item.description[:200] }}</p>
-    {% endif %}
+
+    {# Show matched fields #}
+    <div style="margin-top:0.5rem; display:flex; gap:0.35rem; flex-wrap:wrap;">
+      {% for field in r.matched_fields %}
+      <span style="font-size:0.7rem; padding:0.15rem 0.5rem; background:rgba(210,153,34,0.15); border:1px solid rgba(210,153,34,0.3); border-radius:12px; color:var(--warning);">
+        {{ field.replace('_', ' ').title() }}
+      </span>
+      {% endfor %}
+    </div>
+
+    {# Show snippets with highlighting #}
+    {% for field_name, snippet in r.snippets[:3] %}
+    <div style="margin-top:0.4rem; padding:0.5rem 0.7rem; background:var(--bg); border-radius:var(--radius); font-size:0.82rem; font-family:'JetBrains Mono', monospace; line-height:1.6; border:1px solid var(--border);">
+      <span style="font-size:0.68rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px;">{{ field_name.replace('_', ' ') }}:</span><br>
+      <span class="snippet-text" data-search="{{ search_term }}">{{ snippet }}</span>
+    </div>
+    {% endfor %}
+
     {% for quote in item.quote_list[:1] %}
     <div class="tl-quote" style="margin-top:0.35rem;">"{{ quote }}"</div>
     {% endfor %}
@@ -35,7 +104,20 @@
   {% endfor %}
 </div>
 {% else %}
-<p style="color:var(--text-dim);">No results found. Try different keywords.</p>
+<p style="color:var(--text-dim);">No results found. Try different keywords or remove the quotes for a broader search.</p>
 {% endif %}
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Highlight search terms in snippets
+document.querySelectorAll('.snippet-text').forEach(el => {
+  const term = el.dataset.search;
+  if (!term) return;
+  const text = el.textContent;
+  const regex = new RegExp('(' + term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+  el.innerHTML = text.replace(regex, '<mark class="search-highlight">$1</mark>');
+});
+</script>
 {% endblock %}
