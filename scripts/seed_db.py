@@ -3,6 +3,7 @@ import json
 import os
 from datetime import datetime
 
+
 def seed():
     from app import create_app, db, EvidenceItem, FeatureSuggestion
 
@@ -25,7 +26,6 @@ def seed():
         # Import evidence items
         for item_data in data.get("evidence_items", []):
             item = EvidenceItem(
-                id=item_data["id"],
                 title=item_data["title"],
                 description=item_data.get("description"),
                 evidence_type=item_data["evidence_type"],
@@ -48,12 +48,14 @@ def seed():
 
         # Import feature suggestions
         for sug_data in data.get("feature_suggestions", []):
+            completed_at = None
+            if sug_data.get("completed_at"):
+                completed_at = datetime.fromisoformat(sug_data["completed_at"])
             sug = FeatureSuggestion(
-                id=sug_data["id"],
                 text=sug_data["text"],
                 status=sug_data.get("status", "open"),
                 created_at=datetime.fromisoformat(sug_data["created_at"]) if sug_data.get("created_at") else datetime.utcnow(),
-                completed_at=datetime.fromisoformat(sug_data["completed_at"]) if sug_data.get("completed_at") else datetime.utcnow(),
+                completed_at=completed_at,
             )
             db.session.add(sug)
 
