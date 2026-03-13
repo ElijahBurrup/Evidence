@@ -12,16 +12,16 @@
 <body>
 <nav class="nav">
   <div class="nav-inner">
-    <a href="/" class="nav-brand">Evidence Platform</a>
+    <a href="{{ url_for('index') }}" class="nav-brand">Evidence Platform</a>
     <div class="nav-links">
-      <a href="/dashboard">Dashboard</a>
-      <a href="/intake">Add Evidence</a>
-      <a href="/timeline">Timeline</a>
-      <a href="/audio-evidence">Audio</a>
-      <a href="/exhibits">Exhibits</a>
-      <a href="/claims">Claims</a>
-      <a href="/search">Search</a>
-      <a href="/suggestions">Suggestions</a>
+      <a href="{{ url_for('dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('intake') }}">Add Evidence</a>
+      <a href="{{ url_for('timeline') }}">Timeline</a>
+      <a href="{{ url_for('audio_evidence') }}">Audio</a>
+      <a href="{{ url_for('exhibits_list') }}">Exhibits</a>
+      <a href="{{ url_for('claims_list') }}">Claims</a>
+      <a href="{{ url_for('search') }}">Search</a>
+      <a href="{{ url_for('suggestions_list') }}">Suggestions</a>
     </div>
     <button class="suggest-btn" onclick="document.getElementById('suggestModal').style.display='flex'" title="Suggest a Feature">
       <span class="suggest-btn-icon">&#9733;</span> Suggest Feature
@@ -36,7 +36,7 @@
       <h3 style="color:#d4af37;">Suggest a Feature</h3>
       <button class="modal-close" onclick="document.getElementById('suggestModal').style.display='none'">&times;</button>
     </div>
-    <form method="POST" action="/suggestions/add">
+    <form method="POST" action="{{ url_for('suggestion_add') }}">
       <textarea name="text" rows="4" placeholder="Describe your feature idea, improvement, or bug fix..." required style="width:100%; margin-bottom:1rem;"></textarea>
       <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
         <button type="button" class="btn btn-outline" onclick="document.getElementById('suggestModal').style.display='none'">Cancel</button>
