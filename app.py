@@ -222,6 +222,16 @@ class EvidenceItem(db.Model):
         return []
 
 
+class FeatureSuggestion(db.Model):
+    """User-submitted feature suggestions."""
+    __tablename__ = "feature_suggestions"
+    id = db.Column(db.Integer, primary_key=True)
+    text = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), default="open")  # open, completed, removed
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    completed_at = db.Column(db.DateTime)
+
+
 class Exhibit(db.Model):
     """A numbered exhibit grouping evidence items with a cover sheet narrative."""
     __tablename__ = "exhibits"
@@ -908,6 +918,59 @@ def create_app():
             ).order_by(EvidenceItem.event_date.asc()).all()
             exhibit_data.append({"exhibit": exhibit, "evidence": evidence})
         return render_template("print_all_exhibits.html", exhibit_data=exhibit_data)
+
+    # -- Feature Suggestions --
+
+    @app.route("/suggestions")
+    def suggestions_list():
+        status_filter = request.args.get("status", "open")
+        if status_filter == "all":
+            suggestions = FeatureSuggestion.query.order_by(FeatureSuggestion.created_at.desc()).all()
+        else:
+            suggestions = FeatureSuggestion.query.filter_by(status=status_filter)\
+                .order_by(FeatureSuggestion.created_at.desc()).all()
+        counts = {
+            "open": FeatureSuggestion.query.filter_by(status="open").count(),
+            "completed": FeatureSuggestion.query.filter_by(status="completed").count(),
+            "removed": FeatureSuggestion.query.filter_by(status="removed").count(),
+        }
+        return render_template("suggestions.html", suggestions=suggestions,
+                               status_filter=status_filter, counts=counts)
+
+    @app.route("/suggestions/add", methods=["POST"])
+    def suggestion_add():
+        text = request.form.get("text", "").strip()
+        if text:
+            s = FeatureSuggestion(text=text)
+            db.session.add(s)
+            db.session.commit()
+            flash("Feature suggestion added!", "success")
+        return redirect(request.referrer or url_for("suggestions_list"))
+
+    @app.route("/suggestions/<int:sid>/complete", methods=["POST"])
+    def suggestion_complete(sid):
+        s = FeatureSuggestion.query.get_or_404(sid)
+        s.status = "completed"
+        s.completed_at = datetime.utcnow()
+        db.session.commit()
+        flash(f"Marked as completed: {s.text[:50]}", "success")
+        return redirect(request.referrer or url_for("suggestions_list"))
+
+    @app.route("/suggestions/<int:sid>/remove", methods=["POST"])
+    def suggestion_remove(sid):
+        s = FeatureSuggestion.query.get_or_404(sid)
+        s.status = "removed"
+        db.session.commit()
+        flash(f"Removed: {s.text[:50]}", "success")
+        return redirect(request.referrer or url_for("suggestions_list"))
+
+    @app.route("/suggestions/<int:sid>/reopen", methods=["POST"])
+    def suggestion_reopen(sid):
+        s = FeatureSuggestion.query.get_or_404(sid)
+        s.status = "open"
+        s.completed_at = None
+        db.session.commit()
+        return redirect(request.referrer or url_for("suggestions_list"))
 
     return app
 

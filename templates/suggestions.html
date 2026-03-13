@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Feature Suggestions{% endblock %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:1rem;">
+  <h1>Feature Suggestions</h1>
+  <button class="btn suggest-submit-btn" onclick="document.getElementById('suggestModal').style.display='flex'">
+    &#9733; New Suggestion
+  </button>
+</div>
+
+<div class="suggestion-tabs">
+  <a href="/suggestions?status=open" class="suggestion-tab {{ 'active' if status_filter == 'open' }}">
+    Open <span class="tab-count">({{ counts.open }})</span>
+  </a>
+  <a href="/suggestions?status=completed" class="suggestion-tab {{ 'active' if status_filter == 'completed' }}">
+    Completed <span class="tab-count">({{ counts.completed }})</span>
+  </a>
+  <a href="/suggestions?status=removed" class="suggestion-tab {{ 'active' if status_filter == 'removed' }}">
+    Removed <span class="tab-count">({{ counts.removed }})</span>
+  </a>
+  <a href="/suggestions?status=all" class="suggestion-tab {{ 'active' if status_filter == 'all' }}">
+    All <span class="tab-count">({{ counts.open + counts.completed + counts.removed }})</span>
+  </a>
+</div>
+
+{% if suggestions %}
+<div class="card">
+  {% for s in suggestions %}
+  <div class="suggestion-item {{ 'suggestion-completed' if s.status == 'completed' }} {{ 'suggestion-removed' if s.status == 'removed' }}">
+    <div class="suggestion-text">
+      {{ s.text }}
+      <div class="suggestion-meta">
+        Submitted {{ s.created_at.strftime('%b %d, %Y at %I:%M %p') }}
+        {% if s.status == 'completed' and s.completed_at %}
+          &middot; Completed {{ s.completed_at.strftime('%b %d, %Y') }}
+        {% endif %}
+      </div>
+    </div>
+    <div class="suggestion-actions">
+      {% if s.status == 'open' %}
+      <form method="POST" action="/suggestions/{{ s.id }}/complete">
+        <button type="submit" class="sug-action-btn sug-complete-btn" title="Mark completed">&#10003;</button>
+      </form>
+      <form method="POST" action="/suggestions/{{ s.id }}/remove">
+        <button type="submit" class="sug-action-btn sug-remove-btn" title="Remove">&#10005;</button>
+      </form>
+      {% else %}
+      <form method="POST" action="/suggestions/{{ s.id }}/reopen">
+        <button type="submit" class="sug-action-btn sug-reopen-btn" title="Reopen">&#8634;</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center; padding:3rem; color:var(--text-dim);">
+  <p style="font-size:1.1rem; margin-bottom:0.5rem;">No {{ status_filter }} suggestions yet.</p>
+  <p style="font-size:0.85rem;">Click the gold button to add your first feature idea!</p>
+</div>
+{% endif %}
+{% endblock %}

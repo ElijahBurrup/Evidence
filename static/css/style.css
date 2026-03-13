@@ -604,3 +604,172 @@ input:focus, select:focus, textarea:focus {
     border-radius: var(--radius);
   }
 }
+
+/* ============================================================
+   Suggest Feature Button (flashing gold)
+   ============================================================ */
+@keyframes gold-pulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(212, 175, 55, 0.4); }
+  50% { box-shadow: 0 0 16px rgba(212, 175, 55, 0.9), 0 0 30px rgba(212, 175, 55, 0.3); }
+}
+
+.suggest-btn {
+  background: linear-gradient(135deg, #d4af37, #f0d060);
+  color: #0a0a0a;
+  border: none;
+  padding: 0.45rem 1rem;
+  border-radius: 20px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  animation: gold-pulse 2s ease-in-out infinite;
+  transition: transform 0.15s;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.suggest-btn:hover {
+  transform: scale(1.05);
+  animation: none;
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.8);
+}
+.suggest-btn-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+/* ============================================================
+   Modal
+   ============================================================ */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.modal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 500px;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  line-height: 1;
+}
+.modal-close:hover { color: var(--text); }
+
+.suggest-submit-btn {
+  background: linear-gradient(135deg, #d4af37, #f0d060);
+  color: #0a0a0a;
+  font-weight: 700;
+}
+.suggest-submit-btn:hover {
+  background: linear-gradient(135deg, #e8c94a, #f5dd70);
+}
+
+/* ============================================================
+   Suggestions Page
+   ============================================================ */
+.suggestion-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+.suggestion-tab {
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  transition: all 0.2s;
+}
+.suggestion-tab:hover { border-color: var(--accent); color: var(--text); text-decoration: none; }
+.suggestion-tab.active {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+}
+.suggestion-tab .tab-count {
+  font-size: 0.72rem;
+  opacity: 0.7;
+  margin-left: 0.25rem;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.suggestion-item:last-child { border-bottom: none; }
+
+.suggestion-text {
+  flex: 1;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+.suggestion-meta {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-top: 0.3rem;
+}
+
+.suggestion-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+.suggestion-actions form { display: inline; }
+
+.sug-action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  transition: all 0.15s;
+  padding: 0;
+}
+.sug-complete-btn { color: var(--success); }
+.sug-complete-btn:hover { background: rgba(63, 185, 80, 0.2); border-color: var(--success); }
+.sug-remove-btn { color: var(--danger); }
+.sug-remove-btn:hover { background: rgba(248, 81, 73, 0.2); border-color: var(--danger); }
+.sug-reopen-btn { color: var(--accent); }
+.sug-reopen-btn:hover { background: rgba(88, 166, 255, 0.2); border-color: var(--accent); }
+
+.suggestion-completed .suggestion-text {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+.suggestion-removed .suggestion-text {
+  text-decoration: line-through;
+  opacity: 0.4;
+}
