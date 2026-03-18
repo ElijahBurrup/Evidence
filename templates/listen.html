@@ -1,0 +1,475 @@
+{% extends "base.html" %}
+{% block title %}Listening Station{% endblock %}
+
+{% block head %}
+<style>
+.listen-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;
+}
+.listen-header h1 { font-size: 1.5rem; }
+.listen-header-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+.listen-filters {
+  display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;
+  margin-bottom: 1.5rem; padding: 0.75rem 1rem;
+  background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);
+}
+.listen-filters select { width: auto; min-width: 180px; }
+
+/* Recording card */
+.listen-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  margin-bottom: 1.25rem; overflow: hidden; transition: border-color 0.2s;
+}
+.listen-card.active-card { border-color: var(--accent); }
+
+.listen-card-header {
+  padding: 1rem 1.25rem; cursor: pointer; display: flex;
+  justify-content: space-between; align-items: flex-start; gap: 1rem;
+  transition: background 0.15s;
+}
+.listen-card-header:hover { background: var(--surface-2); }
+
+.listen-card-info h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.25rem; }
+.listen-card-date {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+  color: var(--text-dim); margin-bottom: 0.35rem;
+}
+.listen-card-meta { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.listen-card-toggle { font-size: 1.2rem; color: var(--text-dim); flex-shrink: 0; padding-top: 0.2rem; }
+.note-count-badge {
+  font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.5rem;
+  border-radius: 10px; background: var(--accent); color: #000;
+}
+
+/* Expanded area */
+.listen-card-body { display: none; border-top: 1px solid var(--border); }
+.listen-card-body.open { display: block; }
+
+/* Player */
+.listen-player {
+  padding: 1rem 1.25rem; background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.listen-player audio { width: 100%; margin-bottom: 0.5rem; }
+.player-status {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;
+  color: var(--accent); display: flex; align-items: center; gap: 0.75rem;
+}
+.player-time { font-weight: 600; }
+
+/* Note form — appears when paused */
+.note-form-wrap {
+  padding: 1rem 1.25rem; background: rgba(88, 166, 255, 0.05);
+  border-bottom: 1px solid var(--border); display: none;
+}
+.note-form-wrap.show { display: block; }
+.note-form-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 0.75rem;
+}
+.note-form-header h4 { font-size: 0.85rem; color: var(--accent); }
+.note-form-ts {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;
+  font-weight: 600; color: var(--accent);
+}
+.note-form-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
+.note-form-row select { width: auto; min-width: 120px; font-size: 0.85rem; padding: 0.4rem; }
+.note-form-row input[type="text"] {
+  width: 70px; font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem; text-align: center; padding: 0.4rem;
+}
+.note-form-row textarea {
+  flex: 1; min-height: 60px; font-size: 0.88rem; padding: 0.5rem 0.7rem;
+  resize: vertical;
+}
+.note-form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+
+/* Notes list */
+.notes-section {
+  padding: 0.75rem 1.25rem;
+}
+.notes-section-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 0.5rem;
+}
+.notes-section-header h4 { font-size: 0.82rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+
+.note-item {
+  display: flex; gap: 0.75rem; padding: 0.6rem 0;
+  border-bottom: 1px solid rgba(48, 54, 61, 0.4);
+  align-items: flex-start;
+}
+.note-item:last-child { border-bottom: none; }
+
+.note-ts-badge {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+  color: var(--accent); background: rgba(88, 166, 255, 0.1);
+  padding: 0.2rem 0.5rem; border-radius: 6px; cursor: pointer;
+  white-space: nowrap; flex-shrink: 0;
+  transition: background 0.15s;
+}
+.note-ts-badge:hover { background: rgba(88, 166, 255, 0.25); }
+
+.note-type-icon {
+  font-size: 0.9rem; flex-shrink: 0; width: 20px; text-align: center;
+}
+
+.note-content {
+  flex: 1; font-size: 0.88rem; line-height: 1.5;
+}
+.note-created {
+  font-size: 0.7rem; color: var(--text-dim); margin-top: 0.2rem;
+}
+
+.note-delete-btn {
+  background: none; border: none; color: var(--text-dim);
+  cursor: pointer; font-size: 0.85rem; padding: 0.2rem;
+  opacity: 0; transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.note-item:hover .note-delete-btn { opacity: 1; }
+.note-delete-btn:hover { color: var(--danger); }
+
+/* Type colors */
+.type-note { color: var(--accent); }
+.type-question { color: #d4af37; }
+.type-important { color: var(--danger); }
+.type-action { color: var(--success); }
+
+/* Empty notes */
+.notes-empty {
+  font-size: 0.82rem; color: var(--text-dim); padding: 0.5rem 0;
+  font-style: italic;
+}
+
+/* Export button */
+.export-btn {
+  background: linear-gradient(135deg, #27ae60, #2ecc71);
+  color: #fff; font-weight: 700;
+}
+.export-btn:hover { background: linear-gradient(135deg, #2ecc71, #27ae60); text-decoration: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="listen-header">
+  <div>
+    <h1>Listening Station</h1>
+    <p style="color:var(--text-dim); font-size:0.85rem; margin-top:0.25rem;">
+      {{ recordings|length }} recordings — pause to take notes
+    </p>
+  </div>
+  <div class="listen-header-actions">
+    <a href="{{ url_for('listen_export') }}" class="btn export-btn btn-sm">Export All Notes (CSV)</a>
+  </div>
+</div>
+
+<form class="listen-filters" method="GET" action="{{ url_for('listen') }}">
+  <select name="category">
+    <option value="">All Categories</option>
+    {% for key, cat in categories.items() %}
+    <option value="{{ key }}" {% if category_filter == key %}selected{% endif %}>{{ cat.icon }} {{ cat.label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+  <a href="{{ url_for('listen') }}" class="btn btn-outline btn-sm">Clear</a>
+</form>
+
+{% for rec in recordings %}
+{% set item = rec.item %}
+{% set notes = rec.notes %}
+<div class="listen-card" id="card-{{ item.id }}" data-item-id="{{ item.id }}">
+  <!-- Header -->
+  <div class="listen-card-header" onclick="toggleCard({{ item.id }})">
+    <div class="listen-card-info">
+      <div class="listen-card-date">{{ item.event_date.strftime('%a, %b %d %Y — %I:%M %p') }}</div>
+      <h3>{{ item.title }}</h3>
+      <div class="listen-card-meta">
+        <span class="badge" style="background:{{ item.category_info.get('color', '#666') }};">{{ item.category_info.get('label', item.category) }}</span>
+        <span class="badge severity-{{ item.severity }}">Sev {{ item.severity }}</span>
+        {% if item.child_present %}<span class="child-present-flag">Child Present</span>{% endif %}
+        {% if notes %}<span class="note-count-badge" id="note-count-{{ item.id }}">{{ notes|length }} note{{ 's' if notes|length != 1 else '' }}</span>{% endif %}
+      </div>
+    </div>
+    <span class="listen-card-toggle" id="toggle-{{ item.id }}">&#9654;</span>
+  </div>
+
+  <!-- Body (hidden until expanded) -->
+  <div class="listen-card-body" id="body-{{ item.id }}">
+    <!-- Audio Player -->
+    <div class="listen-player">
+      <audio id="audio-{{ item.id }}" preload="none"
+             ontimeupdate="updateTime({{ item.id }})"
+             onpause="onPause({{ item.id }})"
+             onplay="onPlay({{ item.id }})">
+        <source src="{{ url_for('serve_upload', filename=item.file_path.replace('uploads/', '')) }}" type="audio/mp4">
+        <source src="{{ url_for('serve_upload', filename=item.file_path.replace('uploads/', '')) }}" type="audio/mpeg">
+      </audio>
+      <div class="player-status">
+        <span class="player-time" id="time-{{ item.id }}">00:00</span>
+        <span id="status-{{ item.id }}" style="color:var(--text-dim);">Ready — press play, then pause to add notes</span>
+      </div>
+    </div>
+
+    <!-- Note Form (shown on pause) -->
+    <div class="note-form-wrap" id="noteform-{{ item.id }}">
+      <div class="note-form-header">
+        <h4>Add Note at <span class="note-form-ts" id="form-ts-{{ item.id }}">00:00</span></h4>
+      </div>
+      <div class="note-form-row">
+        <select id="notetype-{{ item.id }}">
+          <option value="note">Note</option>
+          <option value="question">Question</option>
+          <option value="important">Important</option>
+          <option value="action">Action Item</option>
+        </select>
+        <input type="text" id="notets-{{ item.id }}" value="00:00" title="Timestamp (editable)">
+      </div>
+      <div class="note-form-row">
+        <textarea id="notecontent-{{ item.id }}" placeholder="What did you notice? Type your note, question, or observation..."></textarea>
+      </div>
+      <div class="note-form-actions">
+        <button class="btn btn-outline btn-sm" onclick="cancelNote({{ item.id }})">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="saveNote({{ item.id }})">Save Note</button>
+      </div>
+    </div>
+
+    <!-- Notes List -->
+    <div class="notes-section" id="notes-section-{{ item.id }}">
+      <div class="notes-section-header">
+        <h4>Notes ({{ notes|length }})</h4>
+      </div>
+      <div id="notes-list-{{ item.id }}">
+        {% if notes %}
+          {% for note in notes %}
+          <div class="note-item" id="note-{{ note.id }}">
+            <span class="note-ts-badge" onclick="seekTo({{ item.id }}, {{ note.timestamp_seconds }})" title="Click to jump to this timestamp">{{ note.timestamp_formatted }}</span>
+            <span class="note-type-icon type-{{ note.note_type }}">
+              {% if note.note_type == 'question' %}?
+              {% elif note.note_type == 'important' %}!
+              {% elif note.note_type == 'action' %}&#10003;
+              {% else %}&#9998;{% endif %}
+            </span>
+            <div class="note-content">
+              {{ note.content }}
+              <div class="note-created">{{ note.created_at.strftime('%b %d, %Y %I:%M %p') }}</div>
+            </div>
+            <button class="note-delete-btn" onclick="deleteNote({{ note.id }}, {{ item.id }})" title="Delete">&times;</button>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="notes-empty" id="empty-{{ item.id }}">No notes yet. Play the recording and pause to add notes.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+{% if not recordings %}
+<div class="card" style="text-align:center; padding:3rem;">
+  <p>No audio recordings found.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const openCards = new Set();
+const TYPE_ICONS = {
+  note: '&#9998;',
+  question: '?',
+  important: '!',
+  action: '&#10003;',
+};
+
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0');
+}
+
+function toggleCard(id) {
+  const body = document.getElementById('body-' + id);
+  const toggle = document.getElementById('toggle-' + id);
+  const card = document.getElementById('card-' + id);
+  if (openCards.has(id)) {
+    openCards.delete(id);
+    body.classList.remove('open');
+    card.classList.remove('active-card');
+    toggle.innerHTML = '&#9654;';
+    const audio = document.getElementById('audio-' + id);
+    if (audio) audio.pause();
+  } else {
+    openCards.add(id);
+    body.classList.add('open');
+    card.classList.add('active-card');
+    toggle.innerHTML = '&#9660;';
+  }
+}
+
+function updateTime(id) {
+  const audio = document.getElementById('audio-' + id);
+  if (!audio) return;
+  document.getElementById('time-' + id).textContent = formatTime(audio.currentTime);
+}
+
+function onPause(id) {
+  const audio = document.getElementById('audio-' + id);
+  if (!audio) return;
+  const ts = formatTime(audio.currentTime);
+  // Show note form
+  const form = document.getElementById('noteform-' + id);
+  form.classList.add('show');
+  document.getElementById('form-ts-' + id).textContent = ts;
+  document.getElementById('notets-' + id).value = ts;
+  document.getElementById('notecontent-' + id).focus();
+  document.getElementById('status-' + id).textContent = 'Paused — add a note below';
+  document.getElementById('status-' + id).style.color = '#d4af37';
+}
+
+function onPlay(id) {
+  // Hide note form
+  document.getElementById('noteform-' + id).classList.remove('show');
+  document.getElementById('status-' + id).textContent = 'Playing...';
+  document.getElementById('status-' + id).style.color = 'var(--success)';
+}
+
+function cancelNote(id) {
+  document.getElementById('noteform-' + id).classList.remove('show');
+  document.getElementById('notecontent-' + id).value = '';
+  // Resume playback
+  const audio = document.getElementById('audio-' + id);
+  if (audio) audio.play();
+}
+
+function saveNote(id) {
+  const content = document.getElementById('notecontent-' + id).value.trim();
+  if (!content) {
+    document.getElementById('notecontent-' + id).focus();
+    return;
+  }
+  const timestamp = document.getElementById('notets-' + id).value;
+  const noteType = document.getElementById('notetype-' + id).value;
+
+  const formData = new FormData();
+  formData.append('content', content);
+  formData.append('timestamp', timestamp);
+  formData.append('note_type', noteType);
+
+  fetch('/listen/' + id + '/note', {
+    method: 'POST',
+    body: formData,
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+    // Add note to list
+    addNoteToDOM(id, data);
+    // Clear form
+    document.getElementById('notecontent-' + id).value = '';
+    document.getElementById('noteform-' + id).classList.remove('show');
+    // Resume playback
+    const audio = document.getElementById('audio-' + id);
+    if (audio) audio.play();
+  })
+  .catch(err => alert('Error saving note: ' + err.message));
+}
+
+function addNoteToDOM(itemId, note) {
+  const list = document.getElementById('notes-list-' + itemId);
+  // Remove empty message
+  const empty = document.getElementById('empty-' + itemId);
+  if (empty) empty.remove();
+
+  const div = document.createElement('div');
+  div.className = 'note-item';
+  div.id = 'note-' + note.id;
+  div.innerHTML = `
+    <span class="note-ts-badge" onclick="seekTo(${itemId}, ${note.timestamp_seconds})" title="Click to jump">${note.timestamp}</span>
+    <span class="note-type-icon type-${note.note_type}">${TYPE_ICONS[note.note_type] || TYPE_ICONS.note}</span>
+    <div class="note-content">
+      ${escapeHtml(note.content)}
+      <div class="note-created">${note.created_at}</div>
+    </div>
+    <button class="note-delete-btn" onclick="deleteNote(${note.id}, ${itemId})" title="Delete">&times;</button>
+  `;
+
+  // Insert in timestamp order
+  const existing = list.querySelectorAll('.note-item');
+  let inserted = false;
+  for (const item of existing) {
+    const badge = item.querySelector('.note-ts-badge');
+    if (badge && badge.textContent.trim() > note.timestamp) {
+      list.insertBefore(div, item);
+      inserted = true;
+      break;
+    }
+  }
+  if (!inserted) list.appendChild(div);
+
+  // Update note count badge
+  updateNoteCount(itemId);
+}
+
+function deleteNote(noteId, itemId) {
+  if (!confirm('Delete this note?')) return;
+  fetch('/listen/note/' + noteId + '/delete', { method: 'POST' })
+    .then(r => r.json())
+    .then(() => {
+      const el = document.getElementById('note-' + noteId);
+      if (el) el.remove();
+      updateNoteCount(itemId);
+      // Show empty if no notes left
+      const list = document.getElementById('notes-list-' + itemId);
+      if (!list.querySelector('.note-item')) {
+        const empty = document.createElement('div');
+        empty.className = 'notes-empty';
+        empty.id = 'empty-' + itemId;
+        empty.textContent = 'No notes yet. Play the recording and pause to add notes.';
+        list.appendChild(empty);
+      }
+    });
+}
+
+function seekTo(itemId, seconds) {
+  const audio = document.getElementById('audio-' + itemId);
+  if (!audio) return;
+  if (!openCards.has(itemId)) toggleCard(itemId);
+  audio.currentTime = Math.max(0, seconds);
+  audio.play();
+}
+
+function updateNoteCount(itemId) {
+  const list = document.getElementById('notes-list-' + itemId);
+  const count = list.querySelectorAll('.note-item').length;
+  let badge = document.getElementById('note-count-' + itemId);
+  if (count > 0) {
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'note-count-badge';
+      badge.id = 'note-count-' + itemId;
+      const meta = document.querySelector('#card-' + itemId + ' .listen-card-meta');
+      if (meta) meta.appendChild(badge);
+    }
+    badge.textContent = count + ' note' + (count !== 1 ? 's' : '');
+  } else if (badge) {
+    badge.remove();
+  }
+  // Update section header
+  const header = document.querySelector('#notes-section-' + itemId + ' h4');
+  if (header) header.textContent = 'Notes (' + count + ')';
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+</script>
+{% endblock %}

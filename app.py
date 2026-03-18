@@ -1,10 +1,13 @@
 import os
 import json
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, jsonify, flash
+from dotenv import load_dotenv
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, Response, stream_with_context
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
+
+load_dotenv()
 
 db = SQLAlchemy()
 
@@ -274,6 +277,196 @@ class Claim(db.Model):
         if self.evidence_ids:
             return json.loads(self.evidence_ids)
         return []
+
+
+class RecordingNote(db.Model):
+    """A timestamped note on an audio recording."""
+    __tablename__ = "recording_notes"
+    id = db.Column(db.Integer, primary_key=True)
+    evidence_id = db.Column(db.Integer, db.ForeignKey("evidence_items.id"), nullable=False)
+    timestamp_seconds = db.Column(db.Float, default=0)  # playback position in seconds
+    note_type = db.Column(db.String(30), default="note")  # note, question, important, action
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    evidence = db.relationship("EvidenceItem", backref="recording_notes")
+
+    @property
+    def timestamp_formatted(self):
+        m = int(self.timestamp_seconds // 60)
+        s = int(self.timestamp_seconds % 60)
+        return f"{m:02d}:{s:02d}"
+
+
+class Conversation(db.Model):
+    """AI Counsel chat conversation."""
+    __tablename__ = "counsel_conversations"
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(500), default="New Conversation")
+    mode = db.Column(db.String(30), default="general")  # general, exhibit, pattern, timeline
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    messages = db.relationship("Message", backref="conversation", lazy=True, order_by="Message.created_at")
+
+
+class Message(db.Model):
+    """A single message in a counsel conversation."""
+    __tablename__ = "counsel_messages"
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(db.Integer, db.ForeignKey("counsel_conversations.id"), nullable=False)
+    role = db.Column(db.String(20), nullable=False)  # user, assistant
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Knowledge Base Builder
+# ---------------------------------------------------------------------------
+def build_knowledge_base():
+    """Compile all evidence into a structured context string for Claude."""
+    items = EvidenceItem.query.order_by(EvidenceItem.event_date.asc()).all()
+    claims = Claim.query.all()
+    exhibits = Exhibit.query.order_by(Exhibit.sort_order.asc()).all()
+
+    total = len(items)
+    if total == 0:
+        return "No evidence has been entered yet."
+
+    # Summary stats
+    cat_counts = {}
+    for item in items:
+        label = EVIDENCE_CATEGORIES.get(item.category, {}).get("label", item.category)
+        cat_counts[label] = cat_counts.get(label, 0) + 1
+
+    date_range_start = items[0].event_date.strftime("%B %d, %Y")
+    date_range_end = items[-1].event_date.strftime("%B %d, %Y")
+    child_present_count = sum(1 for i in items if i.child_present)
+    high_severity_count = sum(1 for i in items if i.severity >= 4)
+
+    parts = []
+    parts.append("=" * 60)
+    parts.append("EVIDENCE KNOWLEDGE BASE")
+    parts.append("=" * 60)
+    parts.append(f"\nTotal evidence items: {total}")
+    parts.append(f"Date range: {date_range_start} to {date_range_end}")
+    parts.append(f"High severity incidents (4-5): {high_severity_count}")
+    parts.append(f"Incidents where child was present: {child_present_count}")
+    parts.append("\nBreakdown by category:")
+    for label, count in sorted(cat_counts.items(), key=lambda x: x[1], reverse=True):
+        parts.append(f"  - {label}: {count}")
+
+    # Each evidence item — truncate long fields to fit context window
+    MAX_TEXT_LEN = 500  # max chars per text field
+
+    def truncate(text, max_len=MAX_TEXT_LEN):
+        if not text:
+            return text
+        if len(text) <= max_len:
+            return text
+        return text[:max_len] + f"... [truncated, {len(text)} chars total]"
+
+    parts.append("\n" + "=" * 60)
+    parts.append("EVIDENCE ITEMS (chronological)")
+    parts.append("=" * 60)
+
+    for item in items:
+        cat_label = EVIDENCE_CATEGORIES.get(item.category, {}).get("label", item.category)
+        type_label = EVIDENCE_TYPES.get(item.evidence_type, {}).get("label", item.evidence_type)
+        parts.append(f"\n--- Evidence #{item.id} ---")
+        parts.append(f"Title: {item.title}")
+        parts.append(f"Date: {item.event_date.strftime('%Y-%m-%d %I:%M %p')}")
+        parts.append(f"Category: {cat_label} | Type: {type_label} | Severity: {item.severity}/5 | Child: {'Yes' if item.child_present else 'No'}")
+        if item.people_present:
+            parts.append(f"People: {item.people_present}")
+        if item.description:
+            parts.append(f"Description: {truncate(item.description)}")
+        if item.raw_text:
+            parts.append(f"Text: {truncate(item.raw_text, 400)}")
+        if item.transcript:
+            parts.append(f"Transcript: {truncate(item.transcript, 400)}")
+        if item.quote_list:
+            parts.append("Quotes: " + " | ".join(f'"{q}"' for q in item.quote_list[:3]))
+        if item.tag_list:
+            parts.append(f"Tags: {', '.join(item.tag_list)}")
+        if item.notes:
+            parts.append(f"Notes: {truncate(item.notes, 200)}")
+
+    # Claims
+    if claims:
+        parts.append("\n" + "=" * 60)
+        parts.append("PATTERN CLAIMS")
+        parts.append("=" * 60)
+        for claim in claims:
+            parts.append(f"\nClaim: {claim.title}")
+            parts.append(f"Category: {claim.category}")
+            parts.append(f"Strength: {claim.strength}")
+            parts.append(f"Summary: {claim.summary}")
+            parts.append(f"Supporting evidence IDs: {claim.evidence_id_list}")
+
+    # Exhibits
+    if exhibits:
+        parts.append("\n" + "=" * 60)
+        parts.append("GENERATED EXHIBITS")
+        parts.append("=" * 60)
+        for exhibit in exhibits:
+            parts.append(f"\nExhibit {exhibit.letter}: {exhibit.title}")
+            parts.append(f"Category: {exhibit.category}")
+            parts.append(f"Incidents: {exhibit.incident_count}")
+            parts.append(f"Narrative: {exhibit.narrative}")
+
+    return "\n".join(parts)
+
+
+COUNSEL_SYSTEM_PROMPT = """You are an AI legal research assistant embedded in a custody case evidence platform. You have access to the complete evidence knowledge base for this case.
+
+Your role:
+- Analyze evidence patterns and help identify relevant patterns of behavior
+- Draft exhibit narratives for court presentation
+- Answer questions about specific evidence items, timelines, and categories
+- Identify gaps in documentation or areas needing more evidence
+- Suggest how evidence supports or relates to legal arguments
+- Summarize key incidents by category, severity, or time period
+
+Important guidelines:
+- You are NOT providing legal advice. You are analyzing evidence and helping organize it.
+- Always reference specific evidence item numbers (e.g., "Evidence #42") when citing evidence.
+- When drafting exhibits, use formal, objective language suitable for court filings.
+- Flag when the child was present in incidents as this is legally significant.
+- Severity ratings: 1=minor, 2=notable, 3=moderate, 4=serious, 5=safety concern.
+- Be thorough but concise. Courts value clarity.
+
+The evidence categories in this case are:
+- Parental Alienation
+- False Accusations
+- Communication Interference
+- Verbal Abuse / Yelling / Name-Calling
+- Withholding
+- Gatekeeping
+- Schedule / Order Violations
+- Emotional Manipulation
+- Cooperation Attempts (documenting good faith efforts)
+- Impact on Child
+- Financial Interference
+- Third-Party Witness / Corroboration
+"""
+
+
+def get_anthropic_client():
+    """Get Anthropic client with API key from env or SunoSmart .env."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        # Try SunoSmart .env as fallback
+        dotenv_path = os.path.join(os.path.dirname(__file__), "..", "KingdomBuilders.AI", "SunoSmart", ".env")
+        if os.path.exists(dotenv_path):
+            with open(dotenv_path) as f:
+                for line in f:
+                    if line.startswith("ANTHROPIC_API_KEY="):
+                        api_key = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        break
+    if not api_key:
+        return None
+    import anthropic
+    return anthropic.Anthropic(api_key=api_key)
 
 
 # ---------------------------------------------------------------------------
@@ -978,6 +1171,293 @@ def create_app():
         s.completed_at = None
         db.session.commit()
         return redirect(request.referrer or url_for("suggestions_list"))
+
+    # -- Listening Station --
+
+    @app.route("/listen")
+    def listen():
+        category_filter = request.args.get("category")
+        query = EvidenceItem.query.filter(
+            EvidenceItem.evidence_type.in_(["audio", "voicemail"]),
+            EvidenceItem.file_path.isnot(None),
+        )
+        if category_filter:
+            query = query.filter(EvidenceItem.category == category_filter)
+        items = query.order_by(EvidenceItem.event_date.asc()).all()
+
+        # Attach notes to each item
+        recordings = []
+        for item in items:
+            notes = RecordingNote.query.filter_by(evidence_id=item.id)\
+                .order_by(RecordingNote.timestamp_seconds.asc()).all()
+            recordings.append({"item": item, "notes": notes})
+        return render_template("listen.html", recordings=recordings,
+                               category_filter=category_filter)
+
+    @app.route("/listen/<int:item_id>/note", methods=["POST"])
+    def listen_add_note(item_id):
+        item = EvidenceItem.query.get_or_404(item_id)
+        content = request.form.get("content", "").strip()
+        if not content:
+            return jsonify({"error": "Note content required"}), 400
+
+        ts_str = request.form.get("timestamp", "0")
+        try:
+            # Accept MM:SS or raw seconds
+            if ":" in ts_str:
+                parts = ts_str.split(":")
+                ts_seconds = float(parts[0]) * 60 + float(parts[1])
+            else:
+                ts_seconds = float(ts_str)
+        except (ValueError, IndexError):
+            ts_seconds = 0
+
+        note_type = request.form.get("note_type", "note")
+
+        note = RecordingNote(
+            evidence_id=item.id,
+            timestamp_seconds=ts_seconds,
+            note_type=note_type,
+            content=content,
+        )
+        db.session.add(note)
+        db.session.commit()
+
+        return jsonify({
+            "id": note.id,
+            "evidence_id": note.evidence_id,
+            "timestamp": note.timestamp_formatted,
+            "timestamp_seconds": note.timestamp_seconds,
+            "note_type": note.note_type,
+            "content": note.content,
+            "recording_title": item.title,
+            "created_at": note.created_at.strftime("%Y-%m-%d %I:%M %p"),
+        })
+
+    @app.route("/listen/note/<int:note_id>/delete", methods=["POST"])
+    def listen_delete_note(note_id):
+        note = RecordingNote.query.get_or_404(note_id)
+        db.session.delete(note)
+        db.session.commit()
+        return jsonify({"ok": True})
+
+    @app.route("/listen/export")
+    def listen_export():
+        """Export all recording notes as CSV."""
+        import csv
+        import io
+
+        notes = RecordingNote.query.order_by(
+            RecordingNote.evidence_id.asc(),
+            RecordingNote.timestamp_seconds.asc(),
+        ).all()
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Recording Title", "Recording Date", "Category",
+                         "Timestamp", "Note Type", "Note", "Created At"])
+        for note in notes:
+            item = note.evidence
+            writer.writerow([
+                item.title,
+                item.event_date.strftime("%Y-%m-%d %I:%M %p"),
+                EVIDENCE_CATEGORIES.get(item.category, {}).get("label", item.category),
+                note.timestamp_formatted,
+                note.note_type,
+                note.content,
+                note.created_at.strftime("%Y-%m-%d %I:%M %p"),
+            ])
+
+        csv_data = output.getvalue()
+        return Response(
+            csv_data,
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=recording_notes_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"},
+        )
+
+    # -- AI Counsel --
+
+    @app.route("/counsel")
+    def counsel():
+        conversations = Conversation.query.order_by(Conversation.updated_at.desc()).all()
+        active_id = request.args.get("conversation_id", type=int)
+        active_convo = None
+        messages = []
+        if active_id:
+            active_convo = Conversation.query.get(active_id)
+            if active_convo:
+                messages = active_convo.messages
+        return render_template("counsel.html",
+                               conversations=conversations,
+                               active_convo=active_convo,
+                               messages=messages)
+
+    @app.route("/counsel/new", methods=["POST"])
+    def counsel_new():
+        mode = request.form.get("mode", "general")
+        convo = Conversation(
+            title="New Conversation",
+            mode=mode,
+        )
+        db.session.add(convo)
+        db.session.commit()
+        return redirect(url_for("counsel", conversation_id=convo.id))
+
+    @app.route("/counsel/<int:convo_id>/delete", methods=["POST"])
+    def counsel_delete(convo_id):
+        convo = Conversation.query.get_or_404(convo_id)
+        Message.query.filter_by(conversation_id=convo.id).delete()
+        db.session.delete(convo)
+        db.session.commit()
+        flash("Conversation deleted.", "success")
+        return redirect(url_for("counsel"))
+
+    @app.route("/counsel/<int:convo_id>/ask", methods=["POST"])
+    def counsel_ask(convo_id):
+        convo = Conversation.query.get_or_404(convo_id)
+        user_input = request.form.get("message", "").strip()
+        if not user_input:
+            return redirect(url_for("counsel", conversation_id=convo.id))
+
+        # Save user message
+        user_msg = Message(conversation_id=convo.id, role="user", content=user_input)
+        db.session.add(user_msg)
+
+        # Auto-title from first message
+        if convo.title == "New Conversation":
+            convo.title = user_input[:80] + ("..." if len(user_input) > 80 else "")
+
+        db.session.commit()
+
+        # Build messages for Claude
+        client = get_anthropic_client()
+        if not client:
+            error_msg = Message(
+                conversation_id=convo.id,
+                role="assistant",
+                content="API key not configured. Set ANTHROPIC_API_KEY environment variable.",
+            )
+            db.session.add(error_msg)
+            db.session.commit()
+            return redirect(url_for("counsel", conversation_id=convo.id))
+
+        # Build knowledge base context
+        kb = build_knowledge_base()
+
+        # Build conversation history
+        api_messages = []
+        for msg in convo.messages:
+            api_messages.append({"role": msg.role, "content": msg.content})
+
+        # Mode-specific system prompt additions
+        mode_prompts = {
+            "exhibit": "\n\nThe user wants to generate court exhibits. Draft formal exhibit narratives with proper legal formatting. Include evidence item references, date ranges, severity analysis, and child-presence flags.",
+            "pattern": "\n\nThe user wants to identify patterns of behavior. Look for repeated incidents across time, escalating severity, and corroborating evidence across categories.",
+            "timeline": "\n\nThe user wants timeline analysis. Focus on chronological patterns, frequency of incidents, gaps in documentation, and how events relate to each other over time.",
+        }
+        mode_addition = mode_prompts.get(convo.mode, "")
+
+        system = f"{COUNSEL_SYSTEM_PROMPT}{mode_addition}\n\n{kb}"
+
+        try:
+            response = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=4096,
+                system=system,
+                messages=api_messages,
+            )
+            assistant_text = response.content[0].text
+        except Exception as e:
+            assistant_text = f"Error communicating with Claude: {str(e)}"
+
+        assistant_msg = Message(
+            conversation_id=convo.id,
+            role="assistant",
+            content=assistant_text,
+        )
+        db.session.add(assistant_msg)
+        convo.updated_at = datetime.utcnow()
+        db.session.commit()
+
+        return redirect(url_for("counsel", conversation_id=convo.id))
+
+    @app.route("/counsel/<int:convo_id>/stream", methods=["POST"])
+    def counsel_stream(convo_id):
+        """Stream Claude's response via Server-Sent Events."""
+        convo = Conversation.query.get_or_404(convo_id)
+        user_input = request.form.get("message", "").strip()
+        if not user_input:
+            return jsonify({"error": "Empty message"}), 400
+
+        # Save user message
+        user_msg = Message(conversation_id=convo.id, role="user", content=user_input)
+        db.session.add(user_msg)
+        if convo.title == "New Conversation":
+            convo.title = user_input[:80] + ("..." if len(user_input) > 80 else "")
+        db.session.commit()
+
+        client = get_anthropic_client()
+        if not client:
+            return jsonify({"error": "API key not configured"}), 500
+
+        kb = build_knowledge_base()
+        api_messages = []
+        for msg in convo.messages:
+            api_messages.append({"role": msg.role, "content": msg.content})
+
+        mode_prompts = {
+            "exhibit": "\n\nThe user wants to generate court exhibits. Draft formal exhibit narratives with proper legal formatting. Include evidence item references, date ranges, severity analysis, and child-presence flags.",
+            "pattern": "\n\nThe user wants to identify patterns of behavior. Look for repeated incidents across time, escalating severity, and corroborating evidence across categories.",
+            "timeline": "\n\nThe user wants timeline analysis. Focus on chronological patterns, frequency of incidents, gaps in documentation, and how events relate to each other over time.",
+        }
+        mode_addition = mode_prompts.get(convo.mode, "")
+        system = f"{COUNSEL_SYSTEM_PROMPT}{mode_addition}\n\n{kb}"
+
+        def generate():
+            full_response = []
+            try:
+                with client.messages.stream(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=4096,
+                    system=system,
+                    messages=api_messages,
+                ) as stream:
+                    for text in stream.text_stream:
+                        full_response.append(text)
+                        yield f"data: {json.dumps({'text': text})}\n\n"
+            except Exception as e:
+                error_text = f"Error: {str(e)}"
+                full_response.append(error_text)
+                yield f"data: {json.dumps({'text': error_text})}\n\n"
+
+            # Save complete response
+            with app.app_context():
+                assistant_msg = Message(
+                    conversation_id=convo.id,
+                    role="assistant",
+                    content="".join(full_response),
+                )
+                db.session.add(assistant_msg)
+                convo.updated_at = datetime.utcnow()
+                db.session.commit()
+
+            yield f"data: {json.dumps({'done': True})}\n\n"
+
+        return Response(
+            stream_with_context(generate()),
+            mimetype="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    @app.route("/api/knowledge-base")
+    def api_knowledge_base():
+        """Return the knowledge base as JSON for debugging/export."""
+        kb = build_knowledge_base()
+        return jsonify({
+            "knowledge_base": kb,
+            "char_count": len(kb),
+            "evidence_count": EvidenceItem.query.count(),
+        })
 
     return app
 

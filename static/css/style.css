@@ -56,6 +56,8 @@ a:hover { text-decoration: underline; }
 .nav-links { display: flex; gap: 1.5rem; }
 .nav-links a { color: var(--text-dim); font-size: 0.9rem; font-weight: 500; }
 .nav-links a:hover { color: var(--text); text-decoration: none; }
+.nav-links a.nav-counsel { color: #d4af37; font-weight: 700; }
+.nav-links a.nav-counsel:hover { color: #f0d060; }
 
 /* Main */
 .main {
