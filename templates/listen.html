@@ -200,12 +200,13 @@
   <div class="listen-card-body" id="body-{{ item.id }}">
     <!-- Audio Player -->
     <div class="listen-player">
-      <audio id="audio-{{ item.id }}" preload="none"
+      <audio id="audio-{{ item.id }}" preload="none" controls
              ontimeupdate="updateTime({{ item.id }})"
              onpause="onPause({{ item.id }})"
              onplay="onPlay({{ item.id }})">
         <source src="{{ url_for('serve_upload', filename=item.file_path.replace('uploads/', '')) }}" type="audio/mp4">
         <source src="{{ url_for('serve_upload', filename=item.file_path.replace('uploads/', '')) }}" type="audio/mpeg">
+        <source src="{{ url_for('serve_upload', filename=item.file_path.replace('uploads/', '')) }}" type="audio/amr">
       </audio>
       <div class="player-status">
         <span class="player-time" id="time-{{ item.id }}">00:00</span>

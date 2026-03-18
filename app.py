@@ -1316,7 +1316,11 @@ def create_app():
     def counsel_ask(convo_id):
         convo = Conversation.query.get_or_404(convo_id)
         user_input = request.form.get("message", "").strip()
+        is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
         if not user_input:
+            if is_ajax:
+                return jsonify({"error": "Empty message"}), 400
             return redirect(url_for("counsel", conversation_id=convo.id))
 
         # Save user message
@@ -1332,13 +1336,12 @@ def create_app():
         # Build messages for Claude
         client = get_anthropic_client()
         if not client:
-            error_msg = Message(
-                conversation_id=convo.id,
-                role="assistant",
-                content="API key not configured. Set ANTHROPIC_API_KEY environment variable.",
-            )
+            error_text = "API key not configured. Set ANTHROPIC_API_KEY environment variable."
+            error_msg = Message(conversation_id=convo.id, role="assistant", content=error_text)
             db.session.add(error_msg)
             db.session.commit()
+            if is_ajax:
+                return jsonify({"response": error_text})
             return redirect(url_for("counsel", conversation_id=convo.id))
 
         # Build knowledge base context
@@ -1379,6 +1382,8 @@ def create_app():
         convo.updated_at = datetime.utcnow()
         db.session.commit()
 
+        if is_ajax:
+            return jsonify({"response": assistant_text})
         return redirect(url_for("counsel", conversation_id=convo.id))
 
     @app.route("/counsel/<int:convo_id>/stream", methods=["POST"])
